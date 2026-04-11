@@ -28,6 +28,7 @@ def test_eval_outputs_per_query_diagnostics_and_worst_failures() -> None:
     assert "fuzzy_influence" in sample
     assert sample["fuzzy_influence"] in {"help", "harm", "neutral"}
     assert "fuzzy_expectation_alignment" in sample
+    assert "alias_influence" in sample
     assert "winner_trace" in sample
     assert "final_correctness_policy_used" in sample
     assert "diagnostic_classification" in sample

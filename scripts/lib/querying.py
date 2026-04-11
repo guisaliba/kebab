@@ -11,6 +11,7 @@ from rank_bm25 import BM25Okapi
 
 from scripts.lib.indexing import index_freshness, load_index, normalize_text, tokenize, write_index
 from scripts.lib.paths import INDEX_DIR, ROOT
+from scripts.lib.retrieval_aliases import apply_scoped_aliases
 
 EVIDENCE_INTENT_TERMS = {
     "chunk",
@@ -27,18 +28,6 @@ EVIDENCE_INTENT_TERMS = {
     "end",
 }
 CANONICAL_CUE_TERMS = {"canonical", "platform", "tactic", "playbook", "metric", "overview", "vs", "versus"}
-TYPO_NORMALIZATION_MAP = {
-    "brod": "broad",
-    "targetng": "targeting",
-    "targting": "targeting",
-    "tarjeting": "targeting",
-    "metta": "meta",
-    "addz": "ads",
-    "adz": "ads",
-    "roaz": "roas",
-    "baxo": "baixo",
-    "diagnostiq": "diagnostico",
-}
 SOURCE_ID_PATTERN = re.compile(r"\bsrc-\d{4}-\d{4}\b", re.IGNORECASE)
 TIMECODE_PATTERN = re.compile(r"\b\d{2}:\d{2}:\d{2}\b")
 SEGMENT_NUMBER_PATTERN = re.compile(r"\bsegment\s+(\d+)\b")
@@ -166,6 +155,8 @@ def _score_documents(
     min_score: float,
     fuzzy: bool,
     include_navigation: bool = False,
+    use_aliases: bool = True,
+    alias_domain: str = "kb_marketing_ptbr_en",
     output_dir: Path | None = None,
 ) -> list[SearchHit]:
     index = _safe_load_or_build(corpus_type, output_dir=output_dir)
@@ -177,7 +168,13 @@ def _score_documents(
     evidence_intent = is_evidence_query(question)
     query_token_set = set(query_tokens)
     canonical_cues = query_token_set.intersection(CANONICAL_CUE_TERMS)
-    normalized_tokens = {TYPO_NORMALIZATION_MAP.get(token, token) for token in query_token_set}
+    alias_resolution = apply_scoped_aliases(
+        query_token_set,
+        corpus_type=corpus_type,
+        domain=alias_domain,
+        enable_aliases=use_aliases,
+    )
+    normalized_tokens = alias_resolution.normalized_tokens
     has_targeting_intent = bool(normalized_tokens.intersection({"broad", "targeting", "publico", "audience"}))
     has_diagnostic_intent = bool(
         normalized_tokens.intersection({"ctr", "cpm", "roas", "criativo", "oferta", "conversao", "diagnostico"})
@@ -347,6 +344,11 @@ def _score_documents(
                     evidence_alignment_boost += 1.1
                 elif is_chunk_doc:
                     evidence_alignment_boost -= 0.8
+            if query_segment_number and not query_has_transcript_intent:
+                if is_chunk_doc and f"segment {query_segment_number}" in normalized_body:
+                    evidence_alignment_boost += 0.7
+                if is_transcript_doc:
+                    evidence_alignment_boost -= 0.5
             if query_segment_number and is_chunk_doc and segment_mentions > 1:
                 # Generic chunk docs containing many segments should lose to specific matches.
                 evidence_alignment_boost -= 0.6
@@ -367,6 +369,8 @@ def _score_documents(
                 tactic_platform_intent_boost += 1.6
             elif page_type == "platform":
                 tactic_platform_intent_boost -= 0.4
+            if alias_resolution.changed_tokens:
+                tactic_platform_intent_boost += 0.3
         heuristic_fields["tactic_platform_intent_boost"] = float(tactic_platform_intent_boost)
 
         if corpus_type == "wiki" and path_str == "wiki/index.md":
@@ -429,6 +433,8 @@ def search_wiki(
     min_score: float = 0.8,
     fuzzy: bool = False,
     include_navigation: bool = False,
+    use_aliases: bool = True,
+    alias_domain: str = "kb_marketing_ptbr_en",
     output_dir: Path | None = None,
 ) -> list[SearchHit]:
     hits = _score_documents(
@@ -437,6 +443,8 @@ def search_wiki(
         min_score=min_score,
         fuzzy=fuzzy,
         include_navigation=include_navigation,
+        use_aliases=use_aliases,
+        alias_domain=alias_domain,
         output_dir=output_dir or INDEX_DIR,
     )
     return [hit for hit in hits if hit.accepted]
@@ -446,6 +454,8 @@ def search_raw_chunks(
     question: str,
     min_score: float = 0.6,
     fuzzy: bool = False,
+    use_aliases: bool = True,
+    alias_domain: str = "kb_marketing_ptbr_en",
     output_dir: Path | None = None,
 ) -> list[SearchHit]:
     hits = _score_documents(
@@ -454,6 +464,8 @@ def search_raw_chunks(
         min_score=min_score,
         fuzzy=fuzzy,
         include_navigation=True,
+        use_aliases=use_aliases,
+        alias_domain=alias_domain,
         output_dir=output_dir or INDEX_DIR,
     )
     return [hit for hit in hits if hit.accepted]
