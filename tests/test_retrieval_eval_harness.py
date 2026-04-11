@@ -25,7 +25,7 @@ def test_eval_runner_outputs_required_metrics() -> None:
 
     payload = json.loads(report_path.read_text(encoding="utf-8"))
     assert "dataset_metadata" in payload
-    metrics = payload["metrics"]
+    metrics = payload["metrics"]["global"]
     assert "top1_correctness" in metrics
     assert "top3_coverage" in metrics
     assert "canonical_vs_source_note_correctness" in metrics
