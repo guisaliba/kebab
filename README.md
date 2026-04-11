@@ -128,8 +128,18 @@ python scripts/query/main.py \
   --top-k 5 \
   --min-score 0.8 \
   --fuzzy \
-  --explain-ranking
+  --explain-ranking \
+  --explain-ranking-format text
 ```
+
+Additional retrieval hardening flags:
+- `--include-navigation` includes `retrieval_role: navigation` pages in accepted hits (off by default)
+- `--explain-ranking-format json` emits machine-readable explanation payloads
+- `--verbose-index-status` forces detailed per-file freshness inspection (otherwise query uses fast-path freshness checks)
+
+Index trust signals:
+- query output includes `index_status[wiki]` / `index_status[raw]` with `indexed_at`
+- stale index warnings are surfaced when corpus files are newer or diverge from index metadata
 
 ### Build Search Index
 
@@ -142,6 +152,18 @@ Index notes:
 - index files are local and inspectable under `exports/indexes/`
 - schema is versioned and fielded for transparent scoring/explanations
 - corpora are separated (`wiki.index.json`, `raw.index.json`) to preserve wiki-first policy
+
+### Evaluate Retrieval (Golden Queries)
+
+```bash
+python scripts/eval/main.py
+```
+
+Evaluation notes:
+- golden query dataset: `tests/fixtures/retrieval_golden/queries.json`
+- output artifacts: `exports/evals/`
+- metrics include top-1 correctness, top-3 coverage, canonical-vs-source-note correctness, fuzzy help/harm, and raw fallback correctness
+- eval runner writes only under `exports/evals/` and does not mutate `wiki/`, `raw/`, or `staging/`
 
 ## Notes for the implementation agent
 

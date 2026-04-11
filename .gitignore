@@ -20,3 +20,6 @@ exports/tmp/
 # Large source files by default
 raw/sources/**/original/*
 raw/sources/**/extracted/*.wav
+
+# Evaluations
+exports/evals/

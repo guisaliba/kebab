@@ -1,7 +1,7 @@
 {
-  "index_version": 1,
+  "index_version": 2,
   "corpus_type": "wiki",
-  "indexed_at": "2026-04-11T06:56:11Z",
+  "indexed_at": "2026-04-11T08:09:19Z",
   "documents": [
     {
       "path": "wiki/glossary.md",
@@ -21,17 +21,19 @@
         "topics": [
           "glossary"
         ],
-        "aliases": []
+        "aliases": [],
+        "retrieval_role": ""
       },
       "body_text": "\n# Glossary\n\n- **ROAS** — retorno sobre gasto em anúncios.\n- **CTR** — taxa de cliques.\n- **CPM** — custo por mil impressões.\n- **Broad targeting** — estratégia de público amplo.\n",
       "citations_present": false,
       "confidence": "high",
       "page_type": "overview",
+      "retrieval_role": "answerable",
       "normalized_fields": {
         "title": "glossary",
         "headings": "glossary",
         "filename": "glossary md",
-        "frontmatter": "id wiki-overview-0002 type overview confidence high review_status approved status active topics glossary aliases",
+        "frontmatter": "id wiki-overview-0002 type overview confidence high review_status approved status active topics glossary aliases retrieval_role",
         "body": "glossary - roas retorno sobre gasto em anuncios - ctr taxa de cliques - cpm custo por mil impressoes - broad targeting estrategia de publico amplo"
       }
     },
@@ -53,6 +55,7 @@
       "citations_present": false,
       "confidence": "",
       "page_type": "",
+      "retrieval_role": "navigation",
       "normalized_fields": {
         "title": "index",
         "headings": "index overviews platforms tactics source notes",
@@ -63,7 +66,7 @@
     },
     {
       "path": "wiki/overview.md",
-      "mtime": 1775873973.932638,
+      "mtime": 1775873973.0,
       "content_hash": "f7dcdc579a85b4ecc30222272762093623df2a6781439a1b907a4a02ef931ffe",
       "filename": "overview.md",
       "title": "Overview",
@@ -80,23 +83,25 @@
         "topics": [
           "overview"
         ],
-        "aliases": []
+        "aliases": [],
+        "retrieval_role": ""
       },
       "body_text": "\n# Overview\n\nEsta wiki organiza conhecimento curado sobre marketing digital, ecommerce e mídia paga.\n\n## Como ler a wiki\n- páginas de plataforma concentram contexto operacional\n- páginas de tática descrevem abordagens específicas\n- páginas de playbook descrevem passos operacionais\n- source notes ligam conclusões ao material de origem\n",
       "citations_present": false,
       "confidence": "high",
       "page_type": "overview",
+      "retrieval_role": "answerable",
       "normalized_fields": {
         "title": "overview",
         "headings": "overview como ler a wiki",
         "filename": "overview md",
-        "frontmatter": "id wiki-overview-0001 type overview confidence high review_status approved status active topics overview aliases",
+        "frontmatter": "id wiki-overview-0001 type overview confidence high review_status approved status active topics overview aliases retrieval_role",
         "body": "overview esta wiki organiza conhecimento curado sobre marketing digital ecommerce e midia paga como ler a wiki - paginas de plataforma concentram contexto operacional - paginas de tatica descrevem abordagens especificas - paginas de playbook descrevem passos operacionais - source notes ligam conclusoes ao material de origem"
       }
     },
     {
       "path": "wiki/platforms/meta-ads.md",
-      "mtime": 1775890566.013337,
+      "mtime": 1775894958.1419911,
       "content_hash": "b3d281923fd6dea888394fe6913a4987c6073ca6c5908b9e4f8281fe9461cef8",
       "filename": "meta-ads.md",
       "title": "Meta Ads",
@@ -115,17 +120,19 @@
           "meta-ads",
           "ecommerce"
         ],
-        "aliases": []
+        "aliases": [],
+        "retrieval_role": ""
       },
       "body_text": "\n# Meta Ads\n\n## Diagnóstico inicial\nROAS sozinho não é suficiente para diagnosticar problemas de campanha. Ele deve ser lido em conjunto com sinais como CTR, CPM, taxa de conversão e qualidade da oferta. [Sources: SRC-2026-0001 §lesson-01 00:00:00-00:02:10]\n\n## Heurísticas úteis\n- Criativo fraco pode aparecer como CTR baixo mesmo com CPM aceitável. [Sources: SRC-2026-0001 §lesson-01 00:02:11-00:05:30]\n- Oferta fraca pode gerar clique sem conversão proporcional. [Sources: SRC-2026-0001 §lesson-01 00:02:11-00:05:30]\n",
       "citations_present": true,
       "confidence": "medium",
       "page_type": "platform",
+      "retrieval_role": "answerable",
       "normalized_fields": {
         "title": "meta ads",
         "headings": "meta ads diagnostico inicial heuristicas uteis",
         "filename": "meta-ads md",
-        "frontmatter": "id wiki-platform-0001 type platform confidence medium review_status approved status active topics meta-ads ecommerce aliases",
+        "frontmatter": "id wiki-platform-0001 type platform confidence medium review_status approved status active topics meta-ads ecommerce aliases retrieval_role",
         "body": "meta ads diagnostico inicial roas sozinho nao e suficiente para diagnosticar problemas de campanha ele deve ser lido em conjunto com sinais como ctr cpm taxa de conversao e qualidade da oferta sources src-2026-0001 lesson-01 00 00 00-00 02 10 heuristicas uteis - criativo fraco pode aparecer como ctr baixo mesmo com cpm aceitavel sources src-2026-0001 lesson-01 00 02 11-00 05 30 - oferta fraca pode gerar clique sem conversao proporcional sources src-2026-0001 lesson-01 00 02 11-00 05 30"
       }
     },
@@ -148,17 +155,19 @@
         "topics": [
           "meta-ads"
         ],
-        "aliases": []
+        "aliases": [],
+        "retrieval_role": ""
       },
       "body_text": "\n# Source Note — SRC-2026-0001\n\n## Main takeaways\n- ROAS é insuficiente como métrica isolada de diagnóstico.\n- CTR baixo com CPM aceitável pode apontar para fraqueza criativa.\n- Broad targeting pode ser útil em contextos de alta velocidade de teste criativo e oferta forte.\n",
       "citations_present": false,
       "confidence": "medium",
       "page_type": "source-note",
+      "retrieval_role": "auxiliary",
       "normalized_fields": {
         "title": "source note - src-2026-0001",
         "headings": "source note src-2026-0001 main takeaways",
         "filename": "src-2026-0001-meta-ads-course-module-1 md",
-        "frontmatter": "id wiki-source_note-0001 type source-note confidence medium review_status approved status active topics meta-ads aliases",
+        "frontmatter": "id wiki-source_note-0001 type source-note confidence medium review_status approved status active topics meta-ads aliases retrieval_role",
         "body": "source note src-2026-0001 main takeaways - roas e insuficiente como metrica isolada de diagnostico - ctr baixo com cpm aceitavel pode apontar para fraqueza criativa - broad targeting pode ser util em contextos de alta velocidade de teste criativo e oferta forte"
       }
     },
@@ -183,17 +192,19 @@
         ],
         "aliases": [
           "público amplo"
-        ]
+        ],
+        "retrieval_role": ""
       },
       "body_text": "\n# Broad Targeting\n\nBroad targeting pode funcionar bem quando a velocidade de teste criativo é alta e quando a oferta é forte. Esta página não trata a abordagem como regra universal. [Sources: SRC-2026-0001 §lesson-01 00:05:31-00:08:40]\n",
       "citations_present": true,
       "confidence": "medium",
       "page_type": "tactic",
+      "retrieval_role": "answerable",
       "normalized_fields": {
         "title": "broad targeting",
         "headings": "broad targeting",
         "filename": "broad-targeting md",
-        "frontmatter": "id wiki-tactic-0001 type tactic confidence medium review_status approved status active topics meta-ads targeting aliases publico amplo",
+        "frontmatter": "id wiki-tactic-0001 type tactic confidence medium review_status approved status active topics meta-ads targeting aliases publico amplo retrieval_role",
         "body": "broad targeting broad targeting pode funcionar bem quando a velocidade de teste criativo e alta e quando a oferta e forte esta pagina nao trata a abordagem como regra universal sources src-2026-0001 lesson-01 00 05 31-00 08 40"
       }
     }

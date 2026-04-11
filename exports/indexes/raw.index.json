@@ -1,11 +1,11 @@
 {
-  "index_version": 1,
+  "index_version": 2,
   "corpus_type": "raw",
-  "indexed_at": "2026-04-11T06:56:11Z",
+  "indexed_at": "2026-04-11T08:09:17Z",
   "documents": [
     {
       "path": "raw/sources/SRC-2026-0001-meta-ads-course/chunks/0001.md",
-      "mtime": 1775890565.7913558,
+      "mtime": 1775892235.7525797,
       "content_hash": "cc8e1f60c8083313acc5981a1be30823b5c7b321f318ec3c68bfeab4652d632f",
       "filename": "0001.md",
       "title": "0001",
@@ -22,6 +22,7 @@
       "citations_present": false,
       "confidence": "",
       "page_type": "raw-chunk",
+      "retrieval_role": "auxiliary",
       "normalized_fields": {
         "title": "0001",
         "headings": "transcript - lesson-01 segment 1 00 00 00 - 00 02 10 segment 2 00 02 11 - 00 05 30 segment 3 00 05 31 - 00 08 40",
@@ -46,6 +47,7 @@
       "citations_present": false,
       "confidence": "",
       "page_type": "raw-chunk",
+      "retrieval_role": "auxiliary",
       "normalized_fields": {
         "title": "0002",
         "headings": "source_id src-2026-0001",
@@ -68,6 +70,7 @@
       "citations_present": false,
       "confidence": "",
       "page_type": "raw-chunk",
+      "retrieval_role": "auxiliary",
       "normalized_fields": {
         "title": "glossary-hints",
         "headings": "",
@@ -95,6 +98,7 @@
       "citations_present": false,
       "confidence": "",
       "page_type": "raw-chunk",
+      "retrieval_role": "auxiliary",
       "normalized_fields": {
         "title": "lesson-01",
         "headings": "transcript - lesson-01 segment 1 00 00 00 - 00 02 10 segment 2 00 02 11 - 00 05 30 segment 3 00 05 31 - 00 08 40",
