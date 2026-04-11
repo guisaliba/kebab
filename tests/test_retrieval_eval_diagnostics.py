@@ -27,8 +27,13 @@ def test_eval_outputs_per_query_diagnostics_and_worst_failures() -> None:
     assert "actual_fuzzy_on" in sample
     assert "fuzzy_influence" in sample
     assert sample["fuzzy_influence"] in {"help", "harm", "neutral"}
+    assert "fuzzy_expectation_alignment" in sample
     assert "winner_trace" in sample
+    assert "final_correctness_policy_used" in sample
+    assert "diagnostic_classification" in sample
     assert "pass_fail_reasons" in sample
+    assert "diagnostic_summary" in payload
+    assert "classification_counts" in payload["diagnostic_summary"]
 
     worst = payload["worst_failures"]["by_category"]
     for category in (

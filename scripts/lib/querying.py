@@ -27,8 +27,22 @@ EVIDENCE_INTENT_TERMS = {
     "end",
 }
 CANONICAL_CUE_TERMS = {"canonical", "platform", "tactic", "playbook", "metric", "overview", "vs", "versus"}
+TYPO_NORMALIZATION_MAP = {
+    "brod": "broad",
+    "targetng": "targeting",
+    "targting": "targeting",
+    "tarjeting": "targeting",
+    "metta": "meta",
+    "addz": "ads",
+    "adz": "ads",
+    "roaz": "roas",
+    "baxo": "baixo",
+    "diagnostiq": "diagnostico",
+}
 SOURCE_ID_PATTERN = re.compile(r"\bsrc-\d{4}-\d{4}\b", re.IGNORECASE)
 TIMECODE_PATTERN = re.compile(r"\b\d{2}:\d{2}:\d{2}\b")
+SEGMENT_NUMBER_PATTERN = re.compile(r"\bsegment\s+(\d+)\b")
+CHUNK_NUMBER_PATTERN = re.compile(r"\bchunk[-_ ]?0*(\d+)\b")
 
 
 @dataclass
@@ -163,6 +177,16 @@ def _score_documents(
     evidence_intent = is_evidence_query(question)
     query_token_set = set(query_tokens)
     canonical_cues = query_token_set.intersection(CANONICAL_CUE_TERMS)
+    normalized_tokens = {TYPO_NORMALIZATION_MAP.get(token, token) for token in query_token_set}
+    has_targeting_intent = bool(normalized_tokens.intersection({"broad", "targeting", "publico", "audience"}))
+    has_diagnostic_intent = bool(
+        normalized_tokens.intersection({"ctr", "cpm", "roas", "criativo", "oferta", "conversao", "diagnostico"})
+    )
+    query_segment_match = SEGMENT_NUMBER_PATTERN.search(normalized_question)
+    query_chunk_match = CHUNK_NUMBER_PATTERN.search(normalized_question)
+    query_segment_number = query_segment_match.group(1) if query_segment_match else None
+    query_chunk_number = query_chunk_match.group(1) if query_chunk_match else None
+    query_has_transcript_intent = "transcript" in query_token_set
     compare_source_vs_canonical = bool(query_token_set.intersection({"vs", "versus"})) and bool(
         query_token_set.intersection({"platform", "canonical", "tactic", "playbook", "metric"})
     )
@@ -178,7 +202,12 @@ def _score_documents(
     if fuzzy:
         query_tokens, fuzzy_added_tokens = _fuzzy_expand(query_tokens, vocabulary)
 
-    scores = _field_bm25_scores(documents, query_tokens)
+    bm25_query_tokens = list(query_tokens)
+    if corpus_type == "raw" and evidence_intent:
+        # Numeric-only tokens from source IDs can dominate BM25 on chunk filenames.
+        # Keep evidence disambiguation in dedicated heuristics instead.
+        bm25_query_tokens = [token for token in bm25_query_tokens if not token.isdigit()]
+    scores = _field_bm25_scores(documents, bm25_query_tokens)
     hits: list[SearchHit] = []
     for idx, doc in enumerate(documents):
         path = Path(doc["path"])
@@ -265,17 +294,22 @@ def _score_documents(
 
         evidence_alignment_boost = 0.0
         if corpus_type == "raw":
+            normalized_body = normalize_text(body)
             normalized_blob = " ".join(
                 [
                     normalized_title,
                     normalize_text(" ".join(headings)),
-                    normalize_text(body),
+                    normalized_body,
                     normalize_text(path_str),
                     normalize_text(json.dumps(doc.get("frontmatter", {}), ensure_ascii=False)),
                 ]
             )
             if evidence_intent:
                 evidence_alignment_boost += 0.5
+            is_chunk_doc = "/chunks/" in path_str
+            is_transcript_doc = "/transcript/" in path_str
+            chunk_id_present = "chunk_id" in normalized_body
+            segment_mentions = len(SEGMENT_NUMBER_PATTERN.findall(normalized_body))
             if TIMECODE_PATTERN.search(question):
                 for match in TIMECODE_PATTERN.findall(question):
                     if normalize_text(match) in normalized_blob:
@@ -293,6 +327,29 @@ def _score_documents(
             if evidence_markers:
                 marker_hits = sum(1 for token in evidence_markers if token in normalized_blob)
                 evidence_alignment_boost += min(0.6, marker_hits * 0.2)
+            if "chunk_id" in query_token_set:
+                if chunk_id_present:
+                    evidence_alignment_boost += 0.9
+                elif is_chunk_doc:
+                    evidence_alignment_boost -= 0.3
+            if query_chunk_number:
+                if path.stem.lstrip("0") == query_chunk_number:
+                    evidence_alignment_boost += 1.0
+                elif is_chunk_doc:
+                    evidence_alignment_boost -= 0.25
+            if query_segment_number:
+                if f"segment {query_segment_number}" in normalized_body:
+                    evidence_alignment_boost += 0.9
+                elif segment_mentions > 0:
+                    evidence_alignment_boost -= 0.25
+            if query_has_transcript_intent:
+                if is_transcript_doc:
+                    evidence_alignment_boost += 1.1
+                elif is_chunk_doc:
+                    evidence_alignment_boost -= 0.8
+            if query_segment_number and is_chunk_doc and segment_mentions > 1:
+                # Generic chunk docs containing many segments should lose to specific matches.
+                evidence_alignment_boost -= 0.6
         heuristic_fields["evidence_alignment_boost"] = float(evidence_alignment_boost)
 
         fuzzy_match_boost = 0.0
@@ -303,6 +360,14 @@ def _score_documents(
             body_hits = sum(1 for token in fuzzy_added_tokens if token in body_blob)
             fuzzy_match_boost += min(2.2, title_heading_hits * 0.7 + body_hits * 0.35)
         heuristic_fields["fuzzy_match_boost"] = float(fuzzy_match_boost)
+
+        tactic_platform_intent_boost = 0.0
+        if corpus_type == "wiki" and has_targeting_intent and has_diagnostic_intent:
+            if page_type == "tactic":
+                tactic_platform_intent_boost += 1.6
+            elif page_type == "platform":
+                tactic_platform_intent_boost -= 0.4
+        heuristic_fields["tactic_platform_intent_boost"] = float(tactic_platform_intent_boost)
 
         if corpus_type == "wiki" and path_str == "wiki/index.md":
             heuristic_fields["index_page_penalty"] = -1.75

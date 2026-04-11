@@ -144,6 +144,49 @@ def _fuzzy_influence(pass_off: bool, pass_on: bool) -> str:
     return "neutral"
 
 
+def _classification_label(case: dict[str, Any], result_off: dict[str, Any], result_on: dict[str, Any]) -> str:
+    expected_top1 = case.get("expected_top1_path")
+    all_off = (result_off["wiki_paths"] + result_off["raw_paths"])[:3]
+    all_on = (result_on["wiki_paths"] + result_on["raw_paths"])[:3]
+    if not expected_top1:
+        return "not_applicable"
+    if all_off and all_off[0] == expected_top1:
+        if "fuzzy_expected_help" in case:
+            pass_off = _criterion_pass(case, result_off)
+            pass_on = _criterion_pass(case, result_on)
+            influence = _fuzzy_influence(pass_off, pass_on)
+            if bool(case.get("fuzzy_expected_help", False)) and influence != "help" and pass_off and pass_on:
+                return "expectation_mismatch_non_blocking"
+        return "pass"
+    if expected_top1 in all_off:
+        return "retrieval_success_ranking_miss"
+    if expected_top1 in all_on:
+        return "fuzzy_policy_mismatch_candidate"
+    return "retrieval_miss"
+
+
+def _final_correctness_policy(case: dict[str, Any]) -> str:
+    if "fuzzy-enabled" in case.get("categories", []):
+        return "fuzzy_enabled_prefers_fuzzy_on"
+    return "fuzzy_off_primary"
+
+
+def _fuzzy_expectation_alignment(case: dict[str, Any], pass_off: bool, pass_on: bool) -> str:
+    if "fuzzy_expected_help" not in case:
+        return "not_applicable"
+    expected_help = bool(case.get("fuzzy_expected_help", False))
+    influence = _fuzzy_influence(pass_off, pass_on)
+    if expected_help:
+        if influence == "help":
+            return "met"
+        if pass_off and pass_on:
+            return "mismatch_non_blocking"
+        return "mismatch"
+    if influence == "harm":
+        return "mismatch"
+    return "met"
+
+
 def _collect_failure_codes(case: dict[str, Any], result_off: dict[str, Any], result_on: dict[str, Any]) -> list[str]:
     codes: list[str] = []
     all_paths = (result_off["wiki_paths"] + result_off["raw_paths"])[:3]
@@ -166,7 +209,7 @@ def _collect_failure_codes(case: dict[str, Any], result_off: dict[str, Any], res
         pass_on = _criterion_pass(case, result_on)
         influence = _fuzzy_influence(pass_off, pass_on)
         expected_help = bool(case.get("fuzzy_expected_help", False))
-        if expected_help and influence != "help":
+        if expected_help and influence != "help" and not (pass_off and pass_on):
             codes.append("FUZZY_HELP_EXPECTED")
         if (not expected_help) and influence == "harm":
             codes.append("FUZZY_HARM_UNEXPECTED")
@@ -273,10 +316,13 @@ def evaluate(dataset: dict[str, Any]) -> dict[str, Any]:
                 "actual_fuzzy_off": _actual_object(result_off),
                 "actual_fuzzy_on": _actual_object(result_on),
                 "fuzzy_influence": fuzzy_influence,
+                "fuzzy_expectation_alignment": _fuzzy_expectation_alignment(case, pass_off, pass_on),
                 "winner_trace": {
                     "fuzzy_off": result_off.get("winner_trace"),
                     "fuzzy_on": result_on.get("winner_trace"),
                 },
+                "final_correctness_policy_used": _final_correctness_policy(case),
+                "diagnostic_classification": _classification_label(case, result_off, result_on),
                 "pass_fail_reasons": failure_codes,
                 "result_fuzzy_off": result_off,
                 "result_fuzzy_on": result_on,
@@ -286,10 +332,13 @@ def evaluate(dataset: dict[str, Any]) -> dict[str, Any]:
     global_metrics = _aggregate_metrics(metric_inputs)
     by_category: dict[str, Any] = {}
     worst_failures: dict[str, list[dict[str, Any]]] = {category: [] for category in SUPPORTED_CATEGORIES}
+    classification_counts: dict[str, int] = {}
     for category in SUPPORTED_CATEGORIES:
         subset = [item for item in metric_inputs if category in item["case"]["categories"]]
         by_category[category] = _aggregate_metrics(subset)
     for item in evaluated:
+        label = item.get("diagnostic_classification", "unknown")
+        classification_counts[label] = classification_counts.get(label, 0) + 1
         if item["pass_fail_reasons"]:
             for category in item["categories"]:
                 worst_failures[category].append(
@@ -316,6 +365,7 @@ def evaluate(dataset: dict[str, Any]) -> dict[str, Any]:
             "by_category": by_category,
         },
         "worst_failures": {"by_category": worst_failures},
+        "diagnostic_summary": {"classification_counts": classification_counts},
         "queries": evaluated,
     }
 
