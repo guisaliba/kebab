@@ -1,11 +1,11 @@
 {
   "index_version": 2,
   "corpus_type": "raw",
-  "indexed_at": "2026-04-11T09:18:45Z",
+  "indexed_at": "2026-04-11T08:09:17Z",
   "documents": [
     {
       "path": "raw/sources/SRC-2026-0001-meta-ads-course/chunks/0001.md",
-      "mtime": 1775894957.5981193,
+      "mtime": 1775892235.7525797,
       "content_hash": "cc8e1f60c8083313acc5981a1be30823b5c7b321f318ec3c68bfeab4652d632f",
       "filename": "0001.md",
       "title": "0001",

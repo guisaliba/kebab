@@ -1,7 +1,7 @@
 {
   "index_version": 2,
   "corpus_type": "wiki",
-  "indexed_at": "2026-04-11T09:18:47Z",
+  "indexed_at": "2026-04-11T08:09:19Z",
   "documents": [
     {
       "path": "wiki/glossary.md",
@@ -101,7 +101,7 @@
     },
     {
       "path": "wiki/platforms/meta-ads.md",
-      "mtime": 1775899126.1809916,
+      "mtime": 1775894958.1419911,
       "content_hash": "b3d281923fd6dea888394fe6913a4987c6073ca6c5908b9e4f8281fe9461cef8",
       "filename": "meta-ads.md",
       "title": "Meta Ads",

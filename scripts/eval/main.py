@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,13 +12,14 @@ if str(ROOT) not in sys.path:
 
 from scripts.lib.querying import search_raw_chunks, search_wiki
 
-SUPPORTED_CATEGORIES = {
+SUPPORTED_CATEGORIES = (
     "wiki-only",
     "raw-fallback",
     "fuzzy-enabled",
     "canonical-vs-source-note",
     "mixed-ptbr-en",
-}
+)
+_SUPPORTED_CATEGORIES_SET = frozenset(SUPPORTED_CATEGORIES)
 
 
 def _load_dataset(path: Path) -> dict[str, Any]:
@@ -39,7 +41,7 @@ def _load_dataset(path: Path) -> dict[str, Any]:
         categories = query.get("categories")
         if not isinstance(categories, list) or not categories:
             raise SystemExit(f"query {query.get('id')} missing required categories list")
-        invalid = [category for category in categories if category not in SUPPORTED_CATEGORIES]
+        invalid = [category for category in categories if category not in _SUPPORTED_CATEGORIES_SET]
         if invalid:
             raise SystemExit(f"query {query.get('id')} has unsupported categories: {invalid}")
         for category in categories:
@@ -94,8 +96,10 @@ def _canonical_vs_source_note_ok(case: dict[str, Any], result: dict[str, Any]) -
             source_note_index = idx if source_note_index is None else source_note_index
         else:
             canonical_index = idx if canonical_index is None else canonical_index
-    if canonical_index is None or source_note_index is None:
+    if source_note_index is None:
         return True
+    if canonical_index is None:
+        return False
     return canonical_index < source_note_index
 
 
@@ -282,7 +286,14 @@ def evaluate(dataset: dict[str, Any]) -> dict[str, Any]:
                         "failure_reason_codes": item["pass_fail_reasons"],
                     }
                 )
-    worst_failures = {category: failures[:5] for category, failures in worst_failures.items()}
+    def _failure_severity(failure: dict[str, Any]) -> tuple[int, int]:
+        codes = failure["failure_reason_codes"]
+        return (1 if "TOP1_MISS" in codes else 0, len(codes))
+
+    worst_failures = {
+        category: sorted(failures, key=_failure_severity, reverse=True)[:5]
+        for category, failures in worst_failures.items()
+    }
 
     return {
         "dataset_metadata": dataset["metadata"],
@@ -320,7 +331,7 @@ def main() -> None:
     report = evaluate(dataset)
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    filename = f"retrieval-eval-{report['evaluated_at'].replace(':', '').replace('-', '')}.json"
+    filename = f"retrieval-eval-{report['evaluated_at'].replace(':', '').replace('-', '')}-{os.getpid()}.json"
     out_path = output_dir / filename
     out_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"eval_report: {out_path.relative_to(ROOT)}")
