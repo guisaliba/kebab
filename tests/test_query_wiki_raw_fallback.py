@@ -5,7 +5,7 @@ from pathlib import Path
 from scripts.lib.paths import ROOT
 
 
-def test_query_falls_back_to_raw_only_when_zero_wiki_hits() -> None:
+def test_query_falls_back_to_raw_when_wiki_has_zero_hits() -> None:
     raw_chunk = ROOT / "raw" / "sources" / "SRC-2026-0001-meta-ads-course" / "chunks" / "9998.md"
     raw_chunk.write_text("UNIQUE_RAW_FALLBACK_TOKEN only in raw.\n", encoding="utf-8")
     try:
@@ -42,3 +42,23 @@ def test_query_falls_back_to_raw_only_when_zero_wiki_hits() -> None:
     finally:
         if raw_chunk.exists():
             raw_chunk.unlink()
+
+
+def test_query_falls_back_to_raw_for_evidence_style_prompt() -> None:
+    run = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "query" / "main.py"),
+            "--question",
+            "segment 2 CPM CTR criativo fraco",
+            "--top-k",
+            "3",
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert run.returncode == 0, run.stderr + run.stdout
+    assert "consulted_layers: wiki+raw" in run.stdout
+    assert "raw/sources/SRC-2026-0001-meta-ads-course/chunks/0001.md" in run.stdout

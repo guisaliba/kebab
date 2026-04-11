@@ -31,4 +31,4 @@ def test_eval_runner_outputs_required_metrics() -> None:
     assert "canonical_vs_source_note_correctness" in metrics
     assert "fuzzy_help_vs_harm" in metrics
     assert "raw_fallback_correctness" in metrics
-    assert metrics["top1_correctness"]["total"] >= 1
+    assert metrics["top1_correctness"]["total"] >= 12

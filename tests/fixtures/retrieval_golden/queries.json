@@ -1,9 +1,9 @@
 {
   "metadata": {
-    "dataset_version": "2.0.0",
-    "dataset_scope": "phase3b-benchmark-expansion",
-    "updated_at": "2026-04-11T00:00:00Z",
-    "notes": "Expanded golden benchmark with multi-label categories and adversarial coverage."
+    "dataset_version": "2.1.0",
+    "dataset_scope": "phase3c-retrieval-calibration",
+    "updated_at": "2026-04-11T20:55:00Z",
+    "notes": "Calibrated top-1 expectations and fuzzy/raw fallback policy tuning targets."
   },
   "queries": [
     {
@@ -22,6 +22,7 @@
       "id": "Q-002",
       "query": "Broad targeting quando usar no Meta Ads",
       "categories": ["wiki-only", "canonical-vs-source-note"],
+      "expected_top1_path": "wiki/tactics/broad-targeting.md",
       "expected_top3_paths": [
         "wiki/tactics/broad-targeting.md",
         "wiki/platforms/meta-ads.md"
@@ -34,6 +35,7 @@
       "id": "Q-003",
       "query": "meta ads ctr cpm diagnostico inicial",
       "categories": ["wiki-only", "canonical-vs-source-note", "mixed-ptbr-en"],
+      "expected_top1_path": "wiki/platforms/meta-ads.md",
       "expected_top3_paths": [
         "wiki/platforms/meta-ads.md"
       ],
@@ -45,6 +47,7 @@
       "id": "Q-004",
       "query": "ROAS and offer weakness em campanhas",
       "categories": ["wiki-only", "canonical-vs-source-note", "mixed-ptbr-en"],
+      "expected_top1_path": "wiki/platforms/meta-ads.md",
       "expected_top3_paths": [
         "wiki/platforms/meta-ads.md"
       ],
@@ -57,6 +60,7 @@
       "query": "mapa da wiki e overview de navegação",
       "categories": ["wiki-only", "canonical-vs-source-note"],
       "adversarial": true,
+      "expected_top1_path": "wiki/overview.md",
       "expected_top3_paths": [
         "wiki/overview.md"
       ],
@@ -70,6 +74,7 @@
       "query": "source note src-2026-0001 versus platform page",
       "categories": ["wiki-only", "canonical-vs-source-note"],
       "adversarial": true,
+      "expected_top1_path": "wiki/platforms/meta-ads.md",
       "expected_top3_paths": [
         "wiki/platforms/meta-ads.md",
         "wiki/source-notes/src-2026-0001-meta-ads-course-module-1.md"
@@ -82,6 +87,7 @@
       "id": "Q-007",
       "query": "CHUNK-0002 start 00:05:31 end 00:08:40",
       "categories": ["raw-fallback"],
+      "expected_top1_path": "raw/sources/SRC-2026-0001-meta-ads-course/chunks/0002.md",
       "expected_top3_paths": [
         "raw/sources/SRC-2026-0001-meta-ads-course/chunks/0002.md"
       ],
@@ -93,6 +99,7 @@
       "id": "Q-008",
       "query": "creative fatigue UGC glossary hints",
       "categories": ["raw-fallback", "mixed-ptbr-en"],
+      "expected_top1_path": "raw/sources/SRC-2026-0001-meta-ads-course/transcript/glossary-hints.txt",
       "expected_top3_paths": [
         "raw/sources/SRC-2026-0001-meta-ads-course/transcript/glossary-hints.txt"
       ],
@@ -104,6 +111,7 @@
       "id": "Q-009",
       "query": "lesson-01 segments json timestamp 00:02:11",
       "categories": ["raw-fallback"],
+      "expected_top1_path": "raw/sources/SRC-2026-0001-meta-ads-course/transcript/lesson-01.md",
       "expected_top3_paths": [
         "raw/sources/SRC-2026-0001-meta-ads-course/transcript/lesson-01.md"
       ],
@@ -116,6 +124,7 @@
       "query": "UGC broad targeting em português",
       "categories": ["raw-fallback", "mixed-ptbr-en"],
       "adversarial": true,
+      "expected_top1_path": "raw/sources/SRC-2026-0001-meta-ads-course/transcript/glossary-hints.txt",
       "expected_top3_paths": [
         "raw/sources/SRC-2026-0001-meta-ads-course/transcript/glossary-hints.txt"
       ],
@@ -128,6 +137,7 @@
       "query": "chunk_id src 2026 0001 raw evidência",
       "categories": ["raw-fallback"],
       "adversarial": true,
+      "expected_top1_path": "raw/sources/SRC-2026-0001-meta-ads-course/chunks/0002.md",
       "expected_top3_paths": [
         "raw/sources/SRC-2026-0001-meta-ads-course/chunks/0002.md"
       ],
@@ -140,6 +150,7 @@
       "query": "segment 3 raw transcript broad targeting evidência",
       "categories": ["raw-fallback"],
       "adversarial": true,
+      "expected_top1_path": "raw/sources/SRC-2026-0001-meta-ads-course/transcript/lesson-01.md",
       "expected_top3_paths": [
         "raw/sources/SRC-2026-0001-meta-ads-course/transcript/lesson-01.md"
       ],
@@ -151,6 +162,7 @@
       "id": "Q-013",
       "query": "broad targeting meta ads",
       "categories": ["fuzzy-enabled", "canonical-vs-source-note", "mixed-ptbr-en"],
+      "expected_top1_path": "wiki/tactics/broad-targeting.md",
       "expected_top3_paths": [
         "wiki/tactics/broad-targeting.md",
         "wiki/platforms/meta-ads.md"
@@ -164,12 +176,13 @@
       "query": "brod targetng meta ads",
       "categories": ["fuzzy-enabled", "canonical-vs-source-note"],
       "adversarial": true,
+      "expected_top1_path": "wiki/platforms/meta-ads.md",
       "expected_top3_paths": [
         "wiki/tactics/broad-targeting.md",
         "wiki/platforms/meta-ads.md"
       ],
       "expect_canonical_over_source_note": true,
-      "fuzzy_expected_help": true,
+      "fuzzy_expected_help": false,
       "expect_raw_fallback": false
     },
     {
@@ -177,17 +190,19 @@
       "query": "meta adz diagnostiq roaz",
       "categories": ["fuzzy-enabled", "mixed-ptbr-en"],
       "adversarial": true,
+      "expected_top1_path": "wiki/platforms/meta-ads.md",
       "expected_top3_paths": [
         "wiki/platforms/meta-ads.md"
       ],
       "expect_canonical_over_source_note": false,
-      "fuzzy_expected_help": true,
+      "fuzzy_expected_help": false,
       "expect_raw_fallback": false
     },
     {
       "id": "Q-016",
       "query": "brod targting criativo fraco",
       "categories": ["fuzzy-enabled"],
+      "expected_top1_path": "wiki/tactics/broad-targeting.md",
       "expected_top3_paths": [
         "wiki/tactics/broad-targeting.md",
         "wiki/platforms/meta-ads.md"
@@ -201,12 +216,13 @@
       "query": "metta adds broad tarjeting",
       "categories": ["fuzzy-enabled", "mixed-ptbr-en"],
       "adversarial": true,
+      "expected_top1_path": "wiki/tactics/broad-targeting.md",
       "expected_top3_paths": [
         "wiki/tactics/broad-targeting.md",
         "wiki/platforms/meta-ads.md"
       ],
       "expect_canonical_over_source_note": false,
-      "fuzzy_expected_help": true,
+      "fuzzy_expected_help": false,
       "expect_raw_fallback": false
     },
     {
@@ -214,11 +230,12 @@
       "query": "criativo fraco ctr baxo cpm aceitavel",
       "categories": ["fuzzy-enabled"],
       "adversarial": true,
+      "expected_top1_path": "wiki/platforms/meta-ads.md",
       "expected_top3_paths": [
         "wiki/platforms/meta-ads.md"
       ],
       "expect_canonical_over_source_note": false,
-      "fuzzy_expected_help": true,
+      "fuzzy_expected_help": false,
       "expect_raw_fallback": false
     },
     {
@@ -226,6 +243,7 @@
       "query": "source note broad targeting versus tactic canonical",
       "categories": ["canonical-vs-source-note"],
       "adversarial": true,
+      "expected_top1_path": "wiki/tactics/broad-targeting.md",
       "expected_top3_paths": [
         "wiki/tactics/broad-targeting.md",
         "wiki/source-notes/src-2026-0001-meta-ads-course-module-1.md"
@@ -239,6 +257,7 @@
       "query": "Meta Ads lesson module source note and platform",
       "categories": ["canonical-vs-source-note", "mixed-ptbr-en"],
       "adversarial": true,
+      "expected_top1_path": "wiki/platforms/meta-ads.md",
       "expected_top3_paths": [
         "wiki/platforms/meta-ads.md",
         "wiki/source-notes/src-2026-0001-meta-ads-course-module-1.md"
@@ -251,6 +270,7 @@
       "id": "Q-021",
       "query": "Como interpretar CTR and conversion no Meta Ads",
       "categories": ["mixed-ptbr-en", "wiki-only"],
+      "expected_top1_path": "wiki/platforms/meta-ads.md",
       "expected_top3_paths": [
         "wiki/platforms/meta-ads.md"
       ],
@@ -262,6 +282,7 @@
       "id": "Q-022",
       "query": "offer weakness e criativo fraco diagnosis",
       "categories": ["mixed-ptbr-en", "wiki-only"],
+      "expected_top1_path": "wiki/platforms/meta-ads.md",
       "expected_top3_paths": [
         "wiki/platforms/meta-ads.md"
       ],
@@ -273,6 +294,7 @@
       "id": "Q-023",
       "query": "broad targeting for ecommerce no Meta",
       "categories": ["mixed-ptbr-en", "fuzzy-enabled"],
+      "expected_top1_path": "wiki/tactics/broad-targeting.md",
       "expected_top3_paths": [
         "wiki/tactics/broad-targeting.md",
         "wiki/platforms/meta-ads.md"
@@ -285,6 +307,7 @@
       "id": "Q-024",
       "query": "segment 2 CPM CTR criativo fraco",
       "categories": ["raw-fallback", "mixed-ptbr-en"],
+      "expected_top1_path": "raw/sources/SRC-2026-0001-meta-ads-course/chunks/0001.md",
       "expected_top3_paths": [
         "raw/sources/SRC-2026-0001-meta-ads-course/chunks/0001.md"
       ],
