@@ -149,6 +149,95 @@ def calibrated_raw_min_score(question: str, wiki_min_score: float) -> float:
     return max(wiki_min_score * 0.75, 0.4)
 
 
+def _raw_evidence_alignment_components(
+    *,
+    question: str,
+    query_tokens: list[str],
+    query_token_set: set[str],
+    evidence_intent: bool,
+    query_segment_number: str | None,
+    query_chunk_number: str | None,
+    query_has_transcript_intent: bool,
+    path: Path,
+    path_str: str,
+    normalized_body: str,
+    normalized_blob: str,
+) -> dict[str, float]:
+    components: dict[str, float] = {
+        "intent_base": 0.0,
+        "timecode_match": 0.0,
+        "source_id_match": 0.0,
+        "marker_overlap": 0.0,
+        "chunk_id_alignment": 0.0,
+        "chunk_number_alignment": 0.0,
+        "segment_number_alignment": 0.0,
+        "transcript_path_preference": 0.0,
+        "segment_local_chunk_preference": 0.0,
+        "generic_multi_segment_chunk_penalty": 0.0,
+    }
+    if evidence_intent:
+        components["intent_base"] += 0.5
+
+    is_chunk_doc = "/chunks/" in path_str
+    is_transcript_doc = "/transcript/" in path_str
+    chunk_id_present = "chunk_id" in normalized_body
+    segment_mentions = len(SEGMENT_NUMBER_PATTERN.findall(normalized_body))
+
+    if TIMECODE_PATTERN.search(question):
+        for match in TIMECODE_PATTERN.findall(question):
+            if normalize_text(match) in normalized_blob:
+                components["timecode_match"] += 0.8
+                break
+    if SOURCE_ID_PATTERN.search(question):
+        source_match = SOURCE_ID_PATTERN.search(question)
+        if source_match and normalize_text(source_match.group(0)) in normalized_blob:
+            components["source_id_match"] += 0.8
+
+    evidence_markers = {
+        token
+        for token in query_tokens
+        if token in {"chunk", "chunk_id", "segment", "transcript", "lesson", "timestamp", "start", "end"}
+    }
+    if evidence_markers:
+        marker_hits = sum(1 for token in evidence_markers if token in normalized_blob)
+        components["marker_overlap"] += min(0.6, marker_hits * 0.2)
+
+    if "chunk_id" in query_token_set:
+        if chunk_id_present:
+            components["chunk_id_alignment"] += 0.9
+        elif is_chunk_doc:
+            components["chunk_id_alignment"] -= 0.3
+    if query_chunk_number:
+        if path.stem.lstrip("0") == query_chunk_number:
+            components["chunk_number_alignment"] += 1.0
+        elif is_chunk_doc:
+            components["chunk_number_alignment"] -= 0.25
+
+    if query_segment_number:
+        if f"segment {query_segment_number}" in normalized_body:
+            components["segment_number_alignment"] += 0.9
+        elif segment_mentions > 0:
+            components["segment_number_alignment"] -= 0.25
+
+    if query_has_transcript_intent:
+        if is_transcript_doc:
+            components["transcript_path_preference"] += 1.1
+        elif is_chunk_doc:
+            components["transcript_path_preference"] -= 0.8
+
+    # Segment-local chunk preference is intentionally isolated in one component to
+    # keep segment-aware scoring explicit and auditable.
+    if query_segment_number and not query_has_transcript_intent:
+        if is_chunk_doc and f"segment {query_segment_number}" in normalized_body:
+            components["segment_local_chunk_preference"] += 0.7
+        if is_transcript_doc:
+            components["segment_local_chunk_preference"] -= 0.5
+    if query_segment_number and is_chunk_doc and segment_mentions > 1:
+        components["generic_multi_segment_chunk_penalty"] -= 0.6
+
+    return components
+
+
 def _score_documents(
     corpus_type: str,
     question: str,
@@ -301,57 +390,20 @@ def _score_documents(
                     normalize_text(json.dumps(doc.get("frontmatter", {}), ensure_ascii=False)),
                 ]
             )
-            if evidence_intent:
-                evidence_alignment_boost += 0.5
-            is_chunk_doc = "/chunks/" in path_str
-            is_transcript_doc = "/transcript/" in path_str
-            chunk_id_present = "chunk_id" in normalized_body
-            segment_mentions = len(SEGMENT_NUMBER_PATTERN.findall(normalized_body))
-            if TIMECODE_PATTERN.search(question):
-                for match in TIMECODE_PATTERN.findall(question):
-                    if normalize_text(match) in normalized_blob:
-                        evidence_alignment_boost += 0.8
-                        break
-            if SOURCE_ID_PATTERN.search(question):
-                source_match = SOURCE_ID_PATTERN.search(question)
-                if source_match and normalize_text(source_match.group(0)) in normalized_blob:
-                    evidence_alignment_boost += 0.8
-            evidence_markers = {
-                token
-                for token in query_tokens
-                if token in {"chunk", "chunk_id", "segment", "transcript", "lesson", "timestamp", "start", "end"}
-            }
-            if evidence_markers:
-                marker_hits = sum(1 for token in evidence_markers if token in normalized_blob)
-                evidence_alignment_boost += min(0.6, marker_hits * 0.2)
-            if "chunk_id" in query_token_set:
-                if chunk_id_present:
-                    evidence_alignment_boost += 0.9
-                elif is_chunk_doc:
-                    evidence_alignment_boost -= 0.3
-            if query_chunk_number:
-                if path.stem.lstrip("0") == query_chunk_number:
-                    evidence_alignment_boost += 1.0
-                elif is_chunk_doc:
-                    evidence_alignment_boost -= 0.25
-            if query_segment_number:
-                if f"segment {query_segment_number}" in normalized_body:
-                    evidence_alignment_boost += 0.9
-                elif segment_mentions > 0:
-                    evidence_alignment_boost -= 0.25
-            if query_has_transcript_intent:
-                if is_transcript_doc:
-                    evidence_alignment_boost += 1.1
-                elif is_chunk_doc:
-                    evidence_alignment_boost -= 0.8
-            if query_segment_number and not query_has_transcript_intent:
-                if is_chunk_doc and f"segment {query_segment_number}" in normalized_body:
-                    evidence_alignment_boost += 0.7
-                if is_transcript_doc:
-                    evidence_alignment_boost -= 0.5
-            if query_segment_number and is_chunk_doc and segment_mentions > 1:
-                # Generic chunk docs containing many segments should lose to specific matches.
-                evidence_alignment_boost -= 0.6
+            evidence_components = _raw_evidence_alignment_components(
+                question=question,
+                query_tokens=query_tokens,
+                query_token_set=query_token_set,
+                evidence_intent=evidence_intent,
+                query_segment_number=query_segment_number,
+                query_chunk_number=query_chunk_number,
+                query_has_transcript_intent=query_has_transcript_intent,
+                path=path,
+                path_str=path_str,
+                normalized_body=normalized_body,
+                normalized_blob=normalized_blob,
+            )
+            evidence_alignment_boost += sum(evidence_components.values())
         heuristic_fields["evidence_alignment_boost"] = float(evidence_alignment_boost)
 
         fuzzy_match_boost = 0.0

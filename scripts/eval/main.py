@@ -201,14 +201,18 @@ def _alias_influence(
     alias_changed = alias_winner != baseline_winner
     fuzzy_changed = fuzzy_winner != baseline_winner
     combined_changed = combined_winner != baseline_winner
-    if combined_changed and alias_changed and fuzzy_changed and combined_winner != alias_winner and combined_winner != fuzzy_winner:
-        primary = "interaction"
-    elif alias_changed and not fuzzy_changed:
-        primary = "alias"
-    elif fuzzy_changed and not alias_changed:
-        primary = "fuzzy"
+
+    if combined_changed and not alias_changed and not fuzzy_changed:
+        primary = "combined_only"
     elif alias_changed and fuzzy_changed:
-        primary = "both"
+        if combined_changed and combined_winner != alias_winner and combined_winner != fuzzy_winner:
+            primary = "alias_plus_fuzzy_interaction"
+        else:
+            primary = "both_independently"
+    elif alias_changed and not fuzzy_changed:
+        primary = "alias_only"
+    elif fuzzy_changed and not alias_changed:
+        primary = "fuzzy_only"
     else:
         primary = "none"
 
