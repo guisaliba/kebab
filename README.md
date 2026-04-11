@@ -135,6 +135,7 @@ python scripts/query/main.py \
 Additional retrieval hardening flags:
 - `--include-navigation` includes `retrieval_role: navigation` pages in accepted hits (off by default)
 - `--explain-ranking-format json` emits machine-readable explanation payloads
+- `--verbose-index-status` forces detailed per-file freshness inspection (otherwise query uses fast-path freshness checks)
 
 Index trust signals:
 - query output includes `index_status[wiki]` / `index_status[raw]` with `indexed_at`

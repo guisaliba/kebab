@@ -248,22 +248,49 @@ def load_index(corpus_type: str, output_dir: Path | None = None) -> dict[str, An
     return data
 
 
-def index_freshness(corpus_type: str, output_dir: Path | None = None) -> dict[str, Any]:
+def index_freshness(
+    corpus_type: str,
+    output_dir: Path | None = None,
+    verbose: bool = False,
+) -> dict[str, Any]:
     index = load_index(corpus_type, output_dir=output_dir)
-    index_docs = {doc["path"]: doc for doc in index.get("documents", [])}
     corpus_files = iter_corpus_files(corpus_type)
-    stale_paths: list[str] = []
-    missing_paths: list[str] = []
-
+    index_path = _index_path(corpus_type, output_dir=output_dir)
+    index_mtime = os.path.getmtime(index_path) if index_path.exists() else 0.0
     newest_corpus_mtime = 0.0
+    corpus_rel_paths: set[str] = set()
     for path in corpus_files:
-        rel = str(path.relative_to(ROOT))
         stat = path.stat()
         newest_corpus_mtime = max(newest_corpus_mtime, stat.st_mtime)
+        corpus_rel_paths.add(str(path.relative_to(ROOT)))
+
+    # Fast-path: if corpus files are not newer than index and verbose mode is disabled,
+    # return immediately without per-file content hashing.
+    if not verbose and newest_corpus_mtime <= index_mtime:
+        return {
+            "corpus_type": corpus_type,
+            "index_path": str(index_path),
+            "indexed_at": index.get("indexed_at", ""),
+            "index_mtime": index_mtime,
+            "newest_corpus_mtime": newest_corpus_mtime,
+            "is_stale": False,
+            "stale_document_count": 0,
+            "missing_document_count": 0,
+            "stale_documents": [],
+            "missing_documents": [],
+            "used_detailed_scan": False,
+        }
+
+    index_docs = {doc["path"]: doc for doc in index.get("documents", [])}
+    stale_paths: list[str] = []
+    missing_paths: list[str] = []
+    for path in corpus_files:
+        rel = str(path.relative_to(ROOT))
         doc = index_docs.get(rel)
         if doc is None:
             missing_paths.append(rel)
             continue
+        stat = path.stat()
         indexed_mtime = float(doc.get("mtime", 0.0))
         if abs(indexed_mtime - stat.st_mtime) > 0.0001:
             stale_paths.append(rel)
@@ -272,12 +299,10 @@ def index_freshness(corpus_type: str, output_dir: Path | None = None) -> dict[st
         if doc.get("content_hash") != current_hash:
             stale_paths.append(rel)
 
-    extra_paths = sorted(set(index_docs.keys()) - {str(path.relative_to(ROOT)) for path in corpus_files})
+    extra_paths = sorted(set(index_docs.keys()) - corpus_rel_paths)
     stale_paths.extend(extra_paths)
     stale_paths = sorted(set(stale_paths))
     is_stale = bool(stale_paths or missing_paths)
-    index_path = _index_path(corpus_type, output_dir=output_dir)
-    index_mtime = os.path.getmtime(index_path) if index_path.exists() else 0.0
     return {
         "corpus_type": corpus_type,
         "index_path": str(index_path),
@@ -289,4 +314,5 @@ def index_freshness(corpus_type: str, output_dir: Path | None = None) -> dict[st
         "missing_document_count": len(missing_paths),
         "stale_documents": stale_paths[:20],
         "missing_documents": missing_paths[:20],
+        "used_detailed_scan": True,
     }

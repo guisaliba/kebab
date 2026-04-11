@@ -23,4 +23,4 @@ raw/sources/**/extracted/*.wav
 
 
 # Evaluations
-evals/
+exports/evals/

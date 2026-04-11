@@ -1,7 +1,7 @@
 {
   "index_version": 2,
   "corpus_type": "wiki",
-  "indexed_at": "2026-04-11T07:23:57Z",
+  "indexed_at": "2026-04-11T08:09:19Z",
   "documents": [
     {
       "path": "wiki/glossary.md",
@@ -66,7 +66,7 @@
     },
     {
       "path": "wiki/overview.md",
-      "mtime": 1775873973.932638,
+      "mtime": 1775873973.0,
       "content_hash": "f7dcdc579a85b4ecc30222272762093623df2a6781439a1b907a4a02ef931ffe",
       "filename": "overview.md",
       "title": "Overview",
@@ -101,7 +101,7 @@
     },
     {
       "path": "wiki/platforms/meta-ads.md",
-      "mtime": 1775892236.062272,
+      "mtime": 1775894958.1419911,
       "content_hash": "b3d281923fd6dea888394fe6913a4987c6073ca6c5908b9e4f8281fe9461cef8",
       "filename": "meta-ads.md",
       "title": "Meta Ads",

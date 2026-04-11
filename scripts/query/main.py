@@ -41,7 +41,8 @@ def _print_index_status(status: dict[str, object], include_warning: bool = True)
     stale = bool(status.get("is_stale", False))
     stale_count = int(status.get("stale_document_count", 0))
     missing_count = int(status.get("missing_document_count", 0))
-    print(f"index_status[{corpus}]: indexed_at={indexed_at} stale={stale}")
+    detailed = bool(status.get("used_detailed_scan", False))
+    print(f"index_status[{corpus}]: indexed_at={indexed_at} stale={stale} detailed_scan={detailed}")
     if include_warning and stale:
         print(
             f"WARNING: stale {corpus} index detected "
@@ -75,6 +76,7 @@ def main() -> None:
     parser.add_argument("--explain-ranking-format", choices=["text", "json"], default="text")
     parser.add_argument("--fuzzy", action="store_true")
     parser.add_argument("--include-navigation", action="store_true")
+    parser.add_argument("--verbose-index-status", action="store_true")
     parser.add_argument(
         "--fuzzy-mode",
         choices=["off", "explicit", "auto-on-zero"],
@@ -82,7 +84,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    wiki_index = index_status("wiki")
+    wiki_index = index_status("wiki", verbose=args.verbose_index_status)
     _print_index_status(wiki_index)
 
     use_fuzzy = args.fuzzy or args.fuzzy_mode == "explicit"
@@ -116,7 +118,7 @@ def main() -> None:
         print("no wiki matches found; raw fallback disabled via --wiki-only")
         return
 
-    raw_index = index_status("raw")
+    raw_index = index_status("raw", verbose=args.verbose_index_status)
     _print_index_status(raw_index)
 
     raw_hits = search_raw_chunks(

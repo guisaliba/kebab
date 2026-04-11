@@ -282,9 +282,17 @@ def search_raw_chunks(
     return [hit for hit in hits if hit.accepted]
 
 
-def index_status(corpus_type: str, output_dir: Path | None = None) -> dict[str, Any]:
+def index_status(
+    corpus_type: str,
+    output_dir: Path | None = None,
+    verbose: bool = False,
+) -> dict[str, Any]:
     try:
-        freshness = index_freshness(corpus_type, output_dir=output_dir or INDEX_DIR)
+        freshness = index_freshness(
+            corpus_type,
+            output_dir=output_dir or INDEX_DIR,
+            verbose=verbose,
+        )
         freshness["status"] = "ok"
         return freshness
     except FileNotFoundError:
