@@ -169,6 +169,7 @@ Evaluation notes:
 - top-1 expectations are calibrated across both wiki and raw categories for stronger ranking-signal quality
 - metrics are emitted both globally and sliced by category labels
 - eval output includes per-query diagnostics (`expected`, `actual`, fallback behavior, fuzzy influence, winner trace) and compact worst-failures summaries with short reason codes
+- eval diagnostics also include `diagnostic_classification`, `final_correctness_policy_used`, and `fuzzy_expectation_alignment` to separate ranking misses from expectation mismatches
 - eval runner writes only under `exports/evals/` and does not mutate `wiki/`, `raw/`, or `staging/`
 
 ## Notes for agents

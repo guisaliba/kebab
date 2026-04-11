@@ -62,3 +62,45 @@ def test_query_falls_back_to_raw_for_evidence_style_prompt() -> None:
     assert run.returncode == 0, run.stderr + run.stdout
     assert "consulted_layers: wiki+raw" in run.stdout
     assert "raw/sources/SRC-2026-0001-meta-ads-course/chunks/0001.md" in run.stdout
+
+
+def test_raw_chunk_id_query_prefers_specific_chunk_target() -> None:
+    run = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "query" / "main.py"),
+            "--question",
+            "chunk_id src 2026 0001 raw evidência",
+            "--top-k",
+            "3",
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert run.returncode == 0, run.stderr + run.stdout
+    lines = [line for line in run.stdout.splitlines() if line.startswith("- ")]
+    assert lines, run.stdout
+    assert "raw/sources/SRC-2026-0001-meta-ads-course/chunks/0002.md" in lines[0], run.stdout
+
+
+def test_transcript_intent_query_prefers_transcript_over_generic_chunk() -> None:
+    run = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "query" / "main.py"),
+            "--question",
+            "segment 3 raw transcript broad targeting evidência",
+            "--top-k",
+            "3",
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert run.returncode == 0, run.stderr + run.stdout
+    lines = [line for line in run.stdout.splitlines() if line.startswith("- ")]
+    assert lines, run.stdout
+    assert "raw/sources/SRC-2026-0001-meta-ads-course/transcript/lesson-01.md" in lines[0], run.stdout

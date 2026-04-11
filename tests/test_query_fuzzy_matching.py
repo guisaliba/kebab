@@ -47,3 +47,34 @@ def test_fuzzy_query_typo_retrieves_target_when_enabled() -> None:
     )
     assert fuzzy.returncode == 0, fuzzy.stderr + fuzzy.stdout
     assert "wiki/tactics/broad-targeting.md" in fuzzy.stdout or "wiki/platforms/meta-ads.md" in fuzzy.stdout
+
+
+def test_fuzzy_mixed_intent_typo_prioritizes_tactic_page() -> None:
+    build = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "index" / "main.py"), "--target", "wiki"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert build.returncode == 0, build.stderr + build.stdout
+
+    fuzzy = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "query" / "main.py"),
+            "--question",
+            "brod targting criativo fraco",
+            "--top-k",
+            "3",
+            "--fuzzy",
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert fuzzy.returncode == 0, fuzzy.stderr + fuzzy.stdout
+    lines = [line for line in fuzzy.stdout.splitlines() if line.startswith("- ")]
+    assert lines, fuzzy.stdout
+    assert "wiki/tactics/broad-targeting.md" in lines[0], fuzzy.stdout
