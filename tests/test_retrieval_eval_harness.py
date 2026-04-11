@@ -1,0 +1,34 @@
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+from scripts.lib.paths import ROOT
+
+
+def test_eval_runner_outputs_required_metrics() -> None:
+    run = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "eval" / "main.py"),
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert run.returncode == 0, run.stderr + run.stdout
+    report_line = next(line for line in run.stdout.splitlines() if line.startswith("eval_report:"))
+    rel_path = report_line.split(":", 1)[1].strip()
+    report_path = ROOT / rel_path
+    assert report_path.exists()
+
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    assert "dataset_metadata" in payload
+    metrics = payload["metrics"]
+    assert "top1_correctness" in metrics
+    assert "top3_coverage" in metrics
+    assert "canonical_vs_source_note_correctness" in metrics
+    assert "fuzzy_help_vs_harm" in metrics
+    assert "raw_fallback_correctness" in metrics
+    assert metrics["top1_correctness"]["total"] >= 1

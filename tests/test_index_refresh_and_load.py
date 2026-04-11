@@ -3,6 +3,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from scripts.lib.indexing import INDEX_VERSION
 from scripts.lib.paths import ROOT
 
 
@@ -28,7 +29,7 @@ def test_index_refresh_creates_versioned_fielded_schema() -> None:
     assert raw_index.exists()
 
     wiki_payload = json.loads(wiki_index.read_text(encoding="utf-8"))
-    assert wiki_payload["index_version"] == 1
+    assert wiki_payload["index_version"] == INDEX_VERSION
     assert wiki_payload["corpus_type"] == "wiki"
     assert "indexed_at" in wiki_payload
     assert len(wiki_payload["documents"]) >= 1
@@ -46,6 +47,7 @@ def test_index_refresh_creates_versioned_fielded_schema() -> None:
         "citations_present",
         "confidence",
         "page_type",
+        "retrieval_role",
         "normalized_fields",
     ):
         assert field in sample_doc

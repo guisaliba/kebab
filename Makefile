@@ -1,4 +1,4 @@
-.PHONY: tree validate ingest review promote query lint test index
+.PHONY: tree validate ingest review promote query lint test index eval
 
 tree:
 	find . -maxdepth 4 | sort
@@ -20,6 +20,9 @@ query:
 
 index:
 	python scripts/index/main.py --target all --rebuild
+
+eval:
+	python scripts/eval/main.py
 
 lint:
 	python scripts/lint/main.py --mode lint

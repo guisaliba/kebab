@@ -1,0 +1,54 @@
+{
+  "metadata": {
+    "dataset_version": "1.0.0",
+    "dataset_scope": "phase3a-core-retrieval",
+    "updated_at": "2026-04-11T00:00:00Z"
+  },
+  "queries": [
+    {
+      "id": "Q-001",
+      "query": "Como diagnosticar ROAS em Meta Ads?",
+      "expected_top1_path": "wiki/platforms/meta-ads.md",
+      "expected_top3_paths": [
+        "wiki/platforms/meta-ads.md"
+      ],
+      "expect_canonical_over_source_note": true,
+      "fuzzy_expected_help": false,
+      "expect_raw_fallback": false,
+      "notes": "Canonical platform page should rank first."
+    },
+    {
+      "id": "Q-002",
+      "query": "broad targeting meta ads",
+      "expected_top3_paths": [
+        "wiki/tactics/broad-targeting.md",
+        "wiki/platforms/meta-ads.md"
+      ],
+      "expect_canonical_over_source_note": true,
+      "fuzzy_expected_help": false,
+      "expect_raw_fallback": false
+    },
+    {
+      "id": "Q-003",
+      "query": "brod targetng meta ads",
+      "expected_top3_paths": [
+        "wiki/tactics/broad-targeting.md",
+        "wiki/platforms/meta-ads.md"
+      ],
+      "expect_canonical_over_source_note": true,
+      "fuzzy_expected_help": true,
+      "expect_raw_fallback": false,
+      "notes": "Typo query used for fuzzy help/harm analysis."
+    },
+    {
+      "id": "Q-004",
+      "query": "Segment 2 CPM CTR criativo fraco",
+      "expected_top3_paths": [
+        "raw/sources/SRC-2026-0001-meta-ads-course/chunks/0001.md"
+      ],
+      "expect_canonical_over_source_note": false,
+      "fuzzy_expected_help": false,
+      "expect_raw_fallback": true
+    }
+  ]
+}
