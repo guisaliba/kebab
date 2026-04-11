@@ -161,11 +161,15 @@ python scripts/eval/main.py
 
 Evaluation notes:
 - golden query dataset: `tests/fixtures/retrieval_golden/queries.json`
+- dataset metadata fields: `dataset_version`, `dataset_scope`, `updated_at` (optional `notes`)
+- each query uses multi-label categories via `categories: [...]`
 - output artifacts: `exports/evals/`
 - metrics include top-1 correctness, top-3 coverage, canonical-vs-source-note correctness, fuzzy help/harm, and raw fallback correctness
+- metrics are emitted both globally and sliced by category labels
+- eval output includes per-query diagnostics (`expected`, `actual`, fallback behavior, fuzzy influence, winner trace) and compact worst-failures summaries with short reason codes
 - eval runner writes only under `exports/evals/` and does not mutate `wiki/`, `raw/`, or `staging/`
 
-## Notes for the implementation agent
+## Notes for agents
 
 Read these first:
 
@@ -174,4 +178,4 @@ Read these first:
 - `schema/`
 - `prompts/`
 
-The agent should preserve the three-zone trust model and never introduce direct writes into `wiki/` from automated ingestion.
+**Always** preserve the three-zone trust model and never introduce direct writes into `wiki/` from automated ingestion.
