@@ -1,0 +1,10 @@
+review_id: REV-2026-0001
+source_id: SRC-2026-0001
+package_status: pending
+created_at: 2026-04-09T00:00:00Z
+updated_at: 2026-04-09T00:00:00Z
+proposed_paths:
+  - staging/reviews/REV-2026-0001/proposed/wiki/platforms/meta-ads.md
+  - staging/reviews/REV-2026-0001/proposed/wiki/tactics/broad-targeting.md
+  - staging/reviews/REV-2026-0001/proposed/wiki/source-notes/src-2026-0001-meta-ads-course-module-1.md
+notes: Starter sample review package.

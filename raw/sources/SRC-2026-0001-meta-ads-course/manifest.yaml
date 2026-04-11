@@ -1,0 +1,28 @@
+source_id: SRC-2026-0001
+title: Meta Ads Course - Module 1
+type: course
+format: video
+language: pt-BR
+creator: Nome do Criador
+publisher: Plataforma X
+acquired_by: internal
+license_note: Paid course; internal use only
+ingested_at: 2026-04-09
+status: active
+topics:
+  - meta-ads
+  - ecommerce
+  - copywriting
+  - creative
+files:
+  originals:
+    - original/lesson-01.mp4
+  extracted_audio:
+    - extracted/lesson-01.wav
+  extracted_text:
+    - extracted/lesson-01.txt
+  transcripts:
+    - transcript/lesson-01.md
+  chunks:
+    - chunks/0001.md
+    - chunks/0002.md

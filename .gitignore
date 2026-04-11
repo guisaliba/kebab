@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local environment
+.env
+.env.*
+
+# Build/output
+exports/tmp/
+*.log
+
+# Large source files by default
+raw/sources/**/original/*
+raw/sources/**/extracted/*.wav

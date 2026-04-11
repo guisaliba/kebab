@@ -1,0 +1,64 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+title: Wiki Frontmatter
+type: object
+required:
+  - id
+  - title
+  - type
+  - status
+  - language
+  - created_at
+  - updated_at
+  - review_status
+  - confidence
+  - sources
+  - topics
+properties:
+  id:
+    type: string
+  title:
+    type: string
+  type:
+    type: string
+    enum:
+      - overview
+      - concept
+      - tactic
+      - playbook
+      - platform
+      - metric
+      - framework
+      - creator
+      - source-note
+      - comparison
+      - qa
+      - decision
+  status:
+    type: string
+    enum: [active, archived, draft]
+  language:
+    type: string
+  created_at:
+    type: string
+  updated_at:
+    type: string
+  review_status:
+    type: string
+    enum: [proposed, approved, rejected]
+  confidence:
+    type: string
+    enum: [low, medium, high]
+  sources:
+    type: array
+    items:
+      type: string
+  topics:
+    type: array
+    items:
+      type: string
+  aliases:
+    type: array
+    items:
+      type: string
+  canonical:
+    type: boolean

@@ -1,0 +1,18 @@
+platforms:
+  - meta-ads
+  - google-ads
+  - tiktok-ads
+  - shopify
+  - vtex
+metrics:
+  - roas
+  - ctr
+  - cpc
+  - cpm
+  - mer
+  - aov
+channels:
+  - paid-social
+  - paid-search
+  - email
+  - ecommerce

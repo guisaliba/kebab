@@ -1,0 +1,107 @@
+{
+  "index_version": 1,
+  "corpus_type": "raw",
+  "indexed_at": "2026-04-11T06:56:11Z",
+  "documents": [
+    {
+      "path": "raw/sources/SRC-2026-0001-meta-ads-course/chunks/0001.md",
+      "mtime": 1775890565.7913558,
+      "content_hash": "cc8e1f60c8083313acc5981a1be30823b5c7b321f318ec3c68bfeab4652d632f",
+      "filename": "0001.md",
+      "title": "0001",
+      "headings": [
+        "Transcript - lesson-01",
+        "Segment 1 [00:00:00 - 00:02:10]",
+        "Segment 2 [00:02:11 - 00:05:30]",
+        "Segment 3 [00:05:31 - 00:08:40]"
+      ],
+      "frontmatter": {
+        "source_id": "SRC-2026-0001-meta-ads-course"
+      },
+      "body_text": "# Transcript - lesson-01\n\n## Segment 1 [00:00:00 - 00:02:10]\nHoje vamos falar sobre estrutura de campanha em Meta Ads e por que o ROAS sozinho nem sempre é suficiente para diagnosticar um problema.\n\n## Segment 2 [00:02:11 - 00:05:30]\nQuando o criativo está fraco, você pode ver CPM aceitável, mas CTR baixo. Quando a oferta está ruim, às vezes o clique vem, mas a conversão não acompanha.\n\n## Segment 3 [00:05:31 - 00:08:40]\nBroad targeting pode funcionar muito bem quando a velocidade de teste criativo é alta e quando a oferta é forte. Não é uma regra universal.\n",
+      "citations_present": false,
+      "confidence": "",
+      "page_type": "raw-chunk",
+      "normalized_fields": {
+        "title": "0001",
+        "headings": "transcript - lesson-01 segment 1 00 00 00 - 00 02 10 segment 2 00 02 11 - 00 05 30 segment 3 00 05 31 - 00 08 40",
+        "filename": "0001 md",
+        "frontmatter": "source_id src-2026-0001-meta-ads-course",
+        "body": "transcript - lesson-01 segment 1 00 00 00 - 00 02 10 hoje vamos falar sobre estrutura de campanha em meta ads e por que o roas sozinho nem sempre e suficiente para diagnosticar um problema segment 2 00 02 11 - 00 05 30 quando o criativo esta fraco voce pode ver cpm aceitavel mas ctr baixo quando a oferta esta ruim as vezes o clique vem mas a conversao nao acompanha segment 3 00 05 31 - 00 08 40 broad targeting pode funcionar muito bem quando a velocidade de teste criativo e alta e quando a oferta e forte nao e uma regra universal"
+      }
+    },
+    {
+      "path": "raw/sources/SRC-2026-0001-meta-ads-course/chunks/0002.md",
+      "mtime": 1775774679.9354827,
+      "content_hash": "61451ce4fe71ddf5d3d073584ab199d19500410f3e9930f937292bdf17aa126c",
+      "filename": "0002.md",
+      "title": "0002",
+      "headings": [
+        "source_id: SRC-2026-0001"
+      ],
+      "frontmatter": {
+        "source_id": "SRC-2026-0001-meta-ads-course"
+      },
+      "body_text": "---\n\n## source_id: SRC-2026-0001\n\nchunk_id: CHUNK-0002\nstart: 00:05:31\nend: 00:08:40\n\nBroad targeting pode funcionar muito bem quando a velocidade de teste criativo é alta e quando a oferta é forte. Não é uma regra universal.",
+      "citations_present": false,
+      "confidence": "",
+      "page_type": "raw-chunk",
+      "normalized_fields": {
+        "title": "0002",
+        "headings": "source_id src-2026-0001",
+        "filename": "0002 md",
+        "frontmatter": "source_id src-2026-0001-meta-ads-course",
+        "body": "--- source_id src-2026-0001 chunk_id chunk-0002 start 00 05 31 end 00 08 40 broad targeting pode funcionar muito bem quando a velocidade de teste criativo e alta e quando a oferta e forte nao e uma regra universal"
+      }
+    },
+    {
+      "path": "raw/sources/SRC-2026-0001-meta-ads-course/transcript/glossary-hints.txt",
+      "mtime": 1775773892.0,
+      "content_hash": "32417e641f93cb3e42f468aa68174a20ddcfb86bb17c598646496b496722a036",
+      "filename": "glossary-hints.txt",
+      "title": "glossary-hints",
+      "headings": [],
+      "frontmatter": {
+        "source_id": "SRC-2026-0001-meta-ads-course"
+      },
+      "body_text": "Meta Ads\nROAS\nCTR\nCPM\nUGC\ncreative fatigue\nbroad targeting\n",
+      "citations_present": false,
+      "confidence": "",
+      "page_type": "raw-chunk",
+      "normalized_fields": {
+        "title": "glossary-hints",
+        "headings": "",
+        "filename": "glossary-hints txt",
+        "frontmatter": "source_id src-2026-0001-meta-ads-course",
+        "body": "meta ads roas ctr cpm ugc creative fatigue broad targeting"
+      }
+    },
+    {
+      "path": "raw/sources/SRC-2026-0001-meta-ads-course/transcript/lesson-01.md",
+      "mtime": 1775773892.0,
+      "content_hash": "cc8e1f60c8083313acc5981a1be30823b5c7b321f318ec3c68bfeab4652d632f",
+      "filename": "lesson-01.md",
+      "title": "lesson-01",
+      "headings": [
+        "Transcript - lesson-01",
+        "Segment 1 [00:00:00 - 00:02:10]",
+        "Segment 2 [00:02:11 - 00:05:30]",
+        "Segment 3 [00:05:31 - 00:08:40]"
+      ],
+      "frontmatter": {
+        "source_id": "SRC-2026-0001-meta-ads-course"
+      },
+      "body_text": "# Transcript - lesson-01\n\n## Segment 1 [00:00:00 - 00:02:10]\nHoje vamos falar sobre estrutura de campanha em Meta Ads e por que o ROAS sozinho nem sempre é suficiente para diagnosticar um problema.\n\n## Segment 2 [00:02:11 - 00:05:30]\nQuando o criativo está fraco, você pode ver CPM aceitável, mas CTR baixo. Quando a oferta está ruim, às vezes o clique vem, mas a conversão não acompanha.\n\n## Segment 3 [00:05:31 - 00:08:40]\nBroad targeting pode funcionar muito bem quando a velocidade de teste criativo é alta e quando a oferta é forte. Não é uma regra universal.\n",
+      "citations_present": false,
+      "confidence": "",
+      "page_type": "raw-chunk",
+      "normalized_fields": {
+        "title": "lesson-01",
+        "headings": "transcript - lesson-01 segment 1 00 00 00 - 00 02 10 segment 2 00 02 11 - 00 05 30 segment 3 00 05 31 - 00 08 40",
+        "filename": "lesson-01 md",
+        "frontmatter": "source_id src-2026-0001-meta-ads-course",
+        "body": "transcript - lesson-01 segment 1 00 00 00 - 00 02 10 hoje vamos falar sobre estrutura de campanha em meta ads e por que o roas sozinho nem sempre e suficiente para diagnosticar um problema segment 2 00 02 11 - 00 05 30 quando o criativo esta fraco voce pode ver cpm aceitavel mas ctr baixo quando a oferta esta ruim as vezes o clique vem mas a conversao nao acompanha segment 3 00 05 31 - 00 08 40 broad targeting pode funcionar muito bem quando a velocidade de teste criativo e alta e quando a oferta e forte nao e uma regra universal"
+      }
+    }
+  ]
+}

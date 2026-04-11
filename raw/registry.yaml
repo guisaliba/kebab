@@ -1,0 +1,12 @@
+version: 1
+sources:
+- source_id: SRC-2026-0001
+  path: raw/sources/SRC-2026-0001-meta-ads-course
+  type: course
+  language: pt-BR
+  status: active
+- source_id: SRC-2099-9001
+  path: raw/sources/SRC-2099-9001-test-source
+  type: course
+  language: pt-BR
+  status: active
