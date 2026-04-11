@@ -294,11 +294,12 @@ def _score_documents(
 
         evidence_alignment_boost = 0.0
         if corpus_type == "raw":
+            normalized_body = normalize_text(body)
             normalized_blob = " ".join(
                 [
                     normalized_title,
                     normalize_text(" ".join(headings)),
-                    normalize_text(body),
+                    normalized_body,
                     normalize_text(path_str),
                     normalize_text(json.dumps(doc.get("frontmatter", {}), ensure_ascii=False)),
                 ]
@@ -307,9 +308,8 @@ def _score_documents(
                 evidence_alignment_boost += 0.5
             is_chunk_doc = "/chunks/" in path_str
             is_transcript_doc = "/transcript/" in path_str
-            normalized_body = normalize_text(body)
             chunk_id_present = "chunk_id" in normalized_body
-            segment_mentions = len(re.findall(r"\bsegment\s+\d+\b", normalized_body))
+            segment_mentions = len(SEGMENT_NUMBER_PATTERN.findall(normalized_body))
             if TIMECODE_PATTERN.search(question):
                 for match in TIMECODE_PATTERN.findall(question):
                     if normalize_text(match) in normalized_blob:
