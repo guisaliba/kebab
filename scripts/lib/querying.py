@@ -12,6 +12,24 @@ from rank_bm25 import BM25Okapi
 from scripts.lib.indexing import index_freshness, load_index, normalize_text, tokenize, write_index
 from scripts.lib.paths import INDEX_DIR, ROOT
 
+EVIDENCE_INTENT_TERMS = {
+    "chunk",
+    "chunk_id",
+    "segment",
+    "transcript",
+    "raw",
+    "timestamp",
+    "timecode",
+    "evidencia",
+    "evidence",
+    "json",
+    "start",
+    "end",
+}
+CANONICAL_CUE_TERMS = {"canonical", "platform", "tactic", "playbook", "metric", "overview", "vs", "versus"}
+SOURCE_ID_PATTERN = re.compile(r"\bsrc-\d{4}-\d{4}\b", re.IGNORECASE)
+TIMECODE_PATTERN = re.compile(r"\b\d{2}:\d{2}:\d{2}\b")
+
 
 @dataclass
 class SearchHit:
@@ -77,21 +95,55 @@ def _field_bm25_scores(documents: list[dict[str, Any]], query_tokens: list[str])
     return field_scores
 
 
-def _fuzzy_expand(query_tokens: list[str], vocabulary: set[str]) -> list[str]:
+def _fuzzy_expand(query_tokens: list[str], vocabulary: set[str]) -> tuple[list[str], set[str]]:
     expanded = list(query_tokens)
+    added: set[str] = set()
     for token in query_tokens:
-        if len(token) < 4:
+        if len(token) < 5:
             continue
-        matches = difflib.get_close_matches(token, vocabulary, n=2, cutoff=0.88)
+        if token in vocabulary:
+            continue
+        if token.isdigit():
+            continue
+        cutoff = 0.9 if len(token) <= 6 else 0.86
+        matches = difflib.get_close_matches(token, vocabulary, n=2, cutoff=cutoff)
         for match in matches:
             if match not in expanded:
                 expanded.append(match)
-    return expanded
+                added.add(match)
+    return expanded, added
 
 
 def _lexical_overlap_guard(query_tokens: list[str], body: str) -> bool:
     body_tokens = set(tokenize(body))
     return bool(body_tokens.intersection(query_tokens))
+
+
+def is_evidence_query(question: str) -> bool:
+    normalized_question = normalize_text(question)
+    query_tokens = set(tokenize(normalized_question))
+    if "ugc" in query_tokens:
+        return True
+    if {"creative", "fatigue"}.issubset(query_tokens):
+        return True
+    if query_tokens.intersection(EVIDENCE_INTENT_TERMS):
+        return True
+    has_source_id = bool(SOURCE_ID_PATTERN.search(question))
+    if has_source_id and query_tokens.intersection({"chunk", "segment", "transcript", "raw", "timestamp", "timecode"}):
+        return True
+    return bool(TIMECODE_PATTERN.search(question))
+
+
+def should_use_raw_fallback(question: str, wiki_hits: list[SearchHit]) -> bool:
+    if not wiki_hits:
+        return True
+    return is_evidence_query(question)
+
+
+def calibrated_raw_min_score(question: str, wiki_min_score: float) -> float:
+    if is_evidence_query(question):
+        return max(wiki_min_score * 0.5, 0.2)
+    return max(wiki_min_score * 0.75, 0.4)
 
 
 def _score_documents(
@@ -108,6 +160,12 @@ def _score_documents(
     query_tokens = tokenize(normalized_question)
     if not query_tokens:
         return []
+    evidence_intent = is_evidence_query(question)
+    query_token_set = set(query_tokens)
+    canonical_cues = query_token_set.intersection(CANONICAL_CUE_TERMS)
+    compare_source_vs_canonical = bool(query_token_set.intersection({"vs", "versus"})) and bool(
+        query_token_set.intersection({"platform", "canonical", "tactic", "playbook", "metric"})
+    )
 
     vocabulary = {
         token
@@ -116,8 +174,9 @@ def _score_documents(
         + tokenize(document["normalized_fields"].get("headings", ""))
         + tokenize(document["normalized_fields"].get("body", ""))
     }
+    fuzzy_added_tokens: set[str] = set()
     if fuzzy:
-        query_tokens = _fuzzy_expand(query_tokens, vocabulary)
+        query_tokens, fuzzy_added_tokens = _fuzzy_expand(query_tokens, vocabulary)
 
     scores = _field_bm25_scores(documents, query_tokens)
     hits: list[SearchHit] = []
@@ -187,10 +246,63 @@ def _score_documents(
         if retrieval_role == "answerable":
             role_adjustment += 0.4
         elif retrieval_role == "auxiliary":
-            role_adjustment -= 0.25
+            role_adjustment += 0.1 if corpus_type == "raw" else -0.25
         elif retrieval_role == "navigation":
             role_adjustment -= 1.25
         heuristic_fields["role_adjustment"] = float(role_adjustment)
+
+        canonical_precedence_boost = 0.0
+        if corpus_type == "wiki":
+            if page_type == "source-note":
+                canonical_precedence_boost -= 0.6 if canonical_cues else 1.1
+                if compare_source_vs_canonical:
+                    canonical_precedence_boost -= 12.0
+            elif page_type in {"platform", "playbook", "tactic", "metric", "comparison", "overview"}:
+                canonical_precedence_boost += 0.45
+                if compare_source_vs_canonical:
+                    canonical_precedence_boost += 0.75
+        heuristic_fields["canonical_precedence_boost"] = float(canonical_precedence_boost)
+
+        evidence_alignment_boost = 0.0
+        if corpus_type == "raw":
+            normalized_blob = " ".join(
+                [
+                    normalized_title,
+                    normalize_text(" ".join(headings)),
+                    normalize_text(body),
+                    normalize_text(path_str),
+                    normalize_text(json.dumps(doc.get("frontmatter", {}), ensure_ascii=False)),
+                ]
+            )
+            if evidence_intent:
+                evidence_alignment_boost += 0.5
+            if TIMECODE_PATTERN.search(question):
+                for match in TIMECODE_PATTERN.findall(question):
+                    if normalize_text(match) in normalized_blob:
+                        evidence_alignment_boost += 0.8
+                        break
+            if SOURCE_ID_PATTERN.search(question):
+                source_match = SOURCE_ID_PATTERN.search(question)
+                if source_match and normalize_text(source_match.group(0)) in normalized_blob:
+                    evidence_alignment_boost += 0.8
+            evidence_markers = {
+                token
+                for token in query_tokens
+                if token in {"chunk", "chunk_id", "segment", "transcript", "lesson", "timestamp", "start", "end"}
+            }
+            if evidence_markers:
+                marker_hits = sum(1 for token in evidence_markers if token in normalized_blob)
+                evidence_alignment_boost += min(0.6, marker_hits * 0.2)
+        heuristic_fields["evidence_alignment_boost"] = float(evidence_alignment_boost)
+
+        fuzzy_match_boost = 0.0
+        if fuzzy and fuzzy_added_tokens:
+            title_heading_blob = " ".join([normalized_title, normalize_text(" ".join(headings))])
+            body_blob = normalize_text(body)
+            title_heading_hits = sum(1 for token in fuzzy_added_tokens if token in title_heading_blob)
+            body_hits = sum(1 for token in fuzzy_added_tokens if token in body_blob)
+            fuzzy_match_boost += min(2.2, title_heading_hits * 0.7 + body_hits * 0.35)
+        heuristic_fields["fuzzy_match_boost"] = float(fuzzy_match_boost)
 
         if corpus_type == "wiki" and path_str == "wiki/index.md":
             heuristic_fields["index_page_penalty"] = -1.75

@@ -9,7 +9,12 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.lib.querying import search_raw_chunks, search_wiki
+from scripts.lib.querying import (
+    calibrated_raw_min_score,
+    search_raw_chunks,
+    search_wiki,
+    should_use_raw_fallback,
+)
 
 SUPPORTED_CATEGORIES = {
     "wiki-only",
@@ -56,19 +61,27 @@ def _load_dataset(path: Path) -> dict[str, Any]:
 
 def _run_single_query(question: str, fuzzy: bool) -> dict[str, Any]:
     wiki_hits = search_wiki(question, min_score=0.8, fuzzy=fuzzy, include_navigation=False)
-    if wiki_hits:
+    if wiki_hits and not should_use_raw_fallback(question, wiki_hits):
         return {
             "consulted_layers": "wiki",
             "wiki_paths": [str(hit.path.relative_to(ROOT)) for hit in wiki_hits[:3]],
             "raw_paths": [],
             "winner_trace": wiki_hits[0].explain_payload(),
         }
-    raw_hits = search_raw_chunks(question, min_score=0.6, fuzzy=fuzzy)
+    raw_hits = search_raw_chunks(question, min_score=calibrated_raw_min_score(question, 0.8), fuzzy=fuzzy)
+    if raw_hits:
+        winner_trace = raw_hits[0].explain_payload()
+        return {
+            "consulted_layers": "wiki+raw",
+            "wiki_paths": [],
+            "raw_paths": [str(hit.path.relative_to(ROOT)) for hit in raw_hits[:3]],
+            "winner_trace": winner_trace,
+        }
     return {
         "consulted_layers": "wiki+raw",
-        "wiki_paths": [],
-        "raw_paths": [str(hit.path.relative_to(ROOT)) for hit in raw_hits[:3]],
-        "winner_trace": raw_hits[0].explain_payload() if raw_hits else None,
+        "wiki_paths": [str(hit.path.relative_to(ROOT)) for hit in wiki_hits[:3]],
+        "raw_paths": [],
+        "winner_trace": wiki_hits[0].explain_payload() if wiki_hits else None,
     }
 
 

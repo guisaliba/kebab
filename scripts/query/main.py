@@ -8,11 +8,13 @@ if str(ROOT) not in sys.path:
 
 from scripts.lib.querying import (
     SearchHit,
+    calibrated_raw_min_score,
     collect_source_markers,
     explain_payload_json,
     index_status,
     search_raw_chunks,
     search_wiki,
+    should_use_raw_fallback,
 )
 
 
@@ -102,7 +104,7 @@ def main() -> None:
             include_navigation=args.include_navigation,
         )
 
-    if wiki_hits:
+    if wiki_hits and not should_use_raw_fallback(args.question, wiki_hits):
         print("consulted_layers: wiki")
         print("answer:")
         _print_hits(
@@ -123,7 +125,7 @@ def main() -> None:
 
     raw_hits = search_raw_chunks(
         args.question,
-        min_score=max(args.min_score * 0.75, 0.4),
+        min_score=calibrated_raw_min_score(args.question, args.min_score),
         fuzzy=use_fuzzy or args.fuzzy_mode == "auto-on-zero",
     )
     print("consulted_layers: wiki+raw")

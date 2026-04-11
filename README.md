@@ -110,7 +110,7 @@ python scripts/query/main.py --question "Como diagnosticar ROAS fraco em campanh
 Fallback behavior:
 
 - query reads `wiki/` first
-- falls back to `raw/` only when zero wiki hits
+- falls back to `raw/` when zero wiki hits or when the prompt is evidence-style (`chunk`, `segment`, `transcript`, timecodes, explicit source IDs)
 - disable fallback with `--wiki-only`
 
 Ranking behavior:
@@ -119,6 +119,7 @@ Ranking behavior:
 - navigation pages like `wiki/index.md` are demoted/excluded from normal answer ranking
 - fuzzy matching is default-off and can be enabled with `--fuzzy`
 - `--fuzzy-mode auto-on-zero` enables conservative fuzzy retry only when wiki accepted hits are zero
+- fuzzy expansion gates short/numeric tokens to reduce noisy expansions
 
 Useful flags:
 
@@ -165,6 +166,7 @@ Evaluation notes:
 - each query uses multi-label categories via `categories: [...]`
 - output artifacts: `exports/evals/`
 - metrics include top-1 correctness, top-3 coverage, canonical-vs-source-note correctness, fuzzy help/harm, and raw fallback correctness
+- top-1 expectations are calibrated across both wiki and raw categories for stronger ranking-signal quality
 - metrics are emitted both globally and sliced by category labels
 - eval output includes per-query diagnostics (`expected`, `actual`, fallback behavior, fuzzy influence, winner trace) and compact worst-failures summaries with short reason codes
 - eval runner writes only under `exports/evals/` and does not mutate `wiki/`, `raw/`, or `staging/`
