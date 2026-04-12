@@ -2,7 +2,7 @@
 
 When a phase is explicitly approved by the user, execute this sequence:
 
-1. Ensure a phase branch exists; if creating a new branch, always branch from `main`.
+1. Ensure a dedicated phase branch exists; always create/switch to a fresh branch for each new phase from updated `main` (do not continue implementation on the previous phase branch).
 2. Commit approved phase changes using Conventional Commits.
 3. Push commits and ensure the branch is published to remote.
 4. Open a PR to `main`.
