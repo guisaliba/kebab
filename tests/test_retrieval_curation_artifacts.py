@@ -384,3 +384,31 @@ def test_confidence_mapping_uses_highest_scrutiny_rule() -> None:
     )
     assert assessment["band"] == "low"
     assert assessment["review_action"] == "deep-review"
+
+
+def test_validate_review_package_returns_errors_not_raises_on_nonstring_reason_codes() -> None:
+    review_id = "REV-2099-9010"
+    review_dir, _ = _build_review_fixture(review_id)
+    try:
+        run = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "curate" / "main.py"), "--review-id", review_id],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert run.returncode == 0, run.stderr + run.stdout
+
+        assist_dir = review_dir / "retrieval-assist"
+        proposals_path = assist_dir / "proposals.jsonl"
+        existing_lines = proposals_path.read_text(encoding="utf-8").splitlines()
+        first_proposal = json.loads(existing_lines[0])
+        first_proposal["confidence_reason_codes"] = ["valid_str", 42, None]
+        proposals_path.write_text(json.dumps(first_proposal, ensure_ascii=False) + "\n", encoding="utf-8")
+
+        errors = validate_review_package(review_dir)
+        assert isinstance(errors, list), "validate_review_package must return a list, not raise"
+        assert any("confidence_reason_codes" in error for error in errors)
+    finally:
+        if review_dir.exists():
+            shutil.rmtree(review_dir)

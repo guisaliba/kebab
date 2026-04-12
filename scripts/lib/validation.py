@@ -582,15 +582,18 @@ def validate_retrieval_assist_artifacts(review_dir: Path) -> list[str]:
                 if not summary_line:
                     errors.append(f"{reviewer_summary_path}: missing triage line for {proposal_id}")
                 else:
-                    expected_reason_text = ", ".join(confidence_reason_codes) if isinstance(confidence_reason_codes, list) else "none"
-                    if not expected_reason_text:
-                        expected_reason_text = "none"
-                    expected_line = (
-                        f"- {proposal_id} | confidence={confidence_score} ({confidence_band}) "
-                        f"| reasons={expected_reason_text} | action={review_action}"
-                    )
-                    if summary_line != expected_line:
-                        errors.append(f"{reviewer_summary_path}: triage line mismatch for {proposal_id}")
+                    if isinstance(confidence_reason_codes, list) and all(
+                        isinstance(reason_code, str) for reason_code in confidence_reason_codes
+                    ):
+                        expected_reason_text = ", ".join(confidence_reason_codes)
+                        if not expected_reason_text:
+                            expected_reason_text = "none"
+                        expected_line = (
+                            f"- {proposal_id} | confidence={confidence_score} ({confidence_band}) "
+                            f"| reasons={expected_reason_text} | action={review_action}"
+                        )
+                        if summary_line != expected_line:
+                            errors.append(f"{reviewer_summary_path}: triage line mismatch for {proposal_id}")
 
             selection_policy = evidence.get("selection_policy")
             if not isinstance(selection_policy, dict):

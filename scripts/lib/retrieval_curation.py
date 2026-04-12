@@ -428,13 +428,14 @@ def _compute_confidence_assessment(
     score = max(0.0, min(1.0, round(base_score - penalty, 6)))
     band = _confidence_band(score)
 
-    reason_codes: list[str] = []
+    candidate_positive_codes: list[str] = []
     if linked_claim_factor >= 0.67:
-        reason_codes.append("claims_linked_strong")
+        candidate_positive_codes.append("claims_linked_strong")
     if citation_factor >= 0.5:
-        reason_codes.append("citations_grounded")
+        candidate_positive_codes.append("citations_grounded")
     if supporting_diversity_factor >= 1.0:
-        reason_codes.append("supporting_context_diverse")
+        candidate_positive_codes.append("supporting_context_diverse")
+    reason_codes: list[str] = [c for c in candidate_positive_codes if c in POSITIVE_REASON_CODES]
     for flag in quality_flags:
         if flag in CAUTIONARY_REASON_CODES:
             reason_codes.append(flag)
