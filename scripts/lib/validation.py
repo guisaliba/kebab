@@ -40,6 +40,17 @@ ALLOWED_RETRIEVAL_QUALITY_FLAGS = {
     "single_supporting_context",
     "duplicated_evidence_unavoidable",
 }
+ALLOWED_CONFIDENCE_BANDS = {"high", "medium", "low"}
+ALLOWED_CONFIDENCE_REASON_CODES = {
+    "claims_linked_strong",
+    "citations_grounded",
+    "supporting_context_diverse",
+    "weak_linked_claim_coverage",
+    "low_citation_coverage",
+    "single_supporting_context",
+    "duplicated_evidence_unavoidable",
+}
+ALLOWED_REVIEW_ACTIONS = {"quick-approve", "normal-review", "deep-review"}
 
 
 def load_yaml(path: Path) -> dict[str, Any]:
@@ -330,6 +341,16 @@ def validate_retrieval_assist_artifacts(review_dir: Path) -> list[str]:
                     errors.append(f"{manifest_path} evidence_bundle_paths[{idx}] missing file: {evidence_bundle_path}")
 
     proposals_path = assist_dir / "proposals.jsonl"
+    reviewer_summary_triage: dict[str, str] = {}
+    reviewer_summary_path = assist_dir / "reviewer-summary.md"
+    if reviewer_summary_path.exists():
+        for line in reviewer_summary_path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped.startswith("- PRP-"):
+                continue
+            proposal_id = stripped[2:].split(" |", 1)[0].strip()
+            reviewer_summary_triage[proposal_id] = stripped
+
     parsed_proposal_count = 0
     proposal_paths_from_jsonl: list[str] = []
     evidence_paths_from_jsonl: list[str] = []
@@ -352,6 +373,10 @@ def validate_retrieval_assist_artifacts(review_dir: Path) -> list[str]:
                 "summary",
                 "evidence_bundle_id",
                 "review_status",
+                "confidence_score",
+                "confidence_band",
+                "confidence_reason_codes",
+                "review_action",
             }
             for field in required:
                 if field not in proposal:
@@ -390,6 +415,24 @@ def validate_retrieval_assist_artifacts(review_dir: Path) -> list[str]:
             review_status = proposal.get("review_status")
             if review_status not in PAGE_REVIEW_STATUSES:
                 errors.append(f"{proposals_path}:{idx}: invalid review_status {review_status}")
+            confidence_score = proposal.get("confidence_score")
+            if not isinstance(confidence_score, (int, float)) or confidence_score < 0.0 or confidence_score > 1.0:
+                errors.append(f"{proposals_path}:{idx}: confidence_score must be numeric in [0,1]")
+            confidence_band = proposal.get("confidence_band")
+            if confidence_band not in ALLOWED_CONFIDENCE_BANDS:
+                errors.append(f"{proposals_path}:{idx}: invalid confidence_band {confidence_band}")
+            confidence_reason_codes = proposal.get("confidence_reason_codes")
+            if not isinstance(confidence_reason_codes, list):
+                errors.append(f"{proposals_path}:{idx}: confidence_reason_codes must be a list")
+            else:
+                for reason_idx, reason_code in enumerate(confidence_reason_codes, start=1):
+                    if not isinstance(reason_code, str) or reason_code not in ALLOWED_CONFIDENCE_REASON_CODES:
+                        errors.append(
+                            f"{proposals_path}:{idx}: confidence_reason_codes[{reason_idx}] invalid value {reason_code}"
+                        )
+            review_action = proposal.get("review_action")
+            if review_action not in ALLOWED_REVIEW_ACTIONS:
+                errors.append(f"{proposals_path}:{idx}: invalid review_action {review_action}")
 
             evidence_bundle_id = proposal.get("evidence_bundle_id")
             if not isinstance(evidence_bundle_id, str):
@@ -475,6 +518,82 @@ def validate_retrieval_assist_artifacts(review_dir: Path) -> list[str]:
                         continue
                     if flag not in ALLOWED_RETRIEVAL_QUALITY_FLAGS:
                         errors.append(f"{evidence_path}: quality_flags[{flag_idx}] invalid value {flag}")
+
+            confidence_assessment = evidence.get("confidence_assessment")
+            if not isinstance(confidence_assessment, dict):
+                errors.append(f"{evidence_path}: confidence_assessment must be an object")
+            else:
+                evidence_score = confidence_assessment.get("score")
+                if not isinstance(evidence_score, (int, float)) or evidence_score < 0.0 or evidence_score > 1.0:
+                    errors.append(f"{evidence_path}: confidence_assessment.score must be numeric in [0,1]")
+                evidence_band = confidence_assessment.get("band")
+                if evidence_band not in ALLOWED_CONFIDENCE_BANDS:
+                    errors.append(f"{evidence_path}: confidence_assessment.band invalid value {evidence_band}")
+                evidence_reason_codes = confidence_assessment.get("reason_codes")
+                if not isinstance(evidence_reason_codes, list):
+                    errors.append(f"{evidence_path}: confidence_assessment.reason_codes must be a list")
+                else:
+                    for reason_idx, reason_code in enumerate(evidence_reason_codes, start=1):
+                        if not isinstance(reason_code, str) or reason_code not in ALLOWED_CONFIDENCE_REASON_CODES:
+                            errors.append(
+                                f"{evidence_path}: confidence_assessment.reason_codes[{reason_idx}] invalid value {reason_code}"
+                            )
+                factor_breakdown = confidence_assessment.get("factor_breakdown")
+                if not isinstance(factor_breakdown, dict):
+                    errors.append(f"{evidence_path}: confidence_assessment.factor_breakdown must be an object")
+                else:
+                    for field in {
+                        "linked_claim_factor",
+                        "citation_factor",
+                        "supporting_diversity_factor",
+                        "base_score",
+                        "penalty",
+                    }:
+                        value = factor_breakdown.get(field)
+                        if not isinstance(value, (int, float)):
+                            errors.append(f"{evidence_path}: confidence_assessment.factor_breakdown.{field} must be numeric")
+                evidence_review_action = confidence_assessment.get("review_action")
+                if evidence_review_action not in ALLOWED_REVIEW_ACTIONS:
+                    errors.append(
+                        f"{evidence_path}: confidence_assessment.review_action invalid value {evidence_review_action}"
+                    )
+                if isinstance(confidence_score, (int, float)) and isinstance(evidence_score, (int, float)):
+                    if abs(float(confidence_score) - float(evidence_score)) > 1e-9:
+                        errors.append(
+                            f"{proposals_path}:{idx}: confidence_score must mirror evidence confidence_assessment.score"
+                        )
+                if confidence_band in ALLOWED_CONFIDENCE_BANDS and evidence_band in ALLOWED_CONFIDENCE_BANDS:
+                    if confidence_band != evidence_band:
+                        errors.append(
+                            f"{proposals_path}:{idx}: confidence_band must mirror evidence confidence_assessment.band"
+                        )
+                if isinstance(confidence_reason_codes, list) and isinstance(evidence_reason_codes, list):
+                    if confidence_reason_codes != evidence_reason_codes:
+                        errors.append(
+                            f"{proposals_path}:{idx}: confidence_reason_codes must mirror evidence confidence_assessment.reason_codes"
+                        )
+                if review_action in ALLOWED_REVIEW_ACTIONS and evidence_review_action in ALLOWED_REVIEW_ACTIONS:
+                    if review_action != evidence_review_action:
+                        errors.append(
+                            f"{proposals_path}:{idx}: review_action must mirror evidence confidence_assessment.review_action"
+                        )
+
+                summary_line = reviewer_summary_triage.get(str(proposal_id))
+                if not summary_line:
+                    errors.append(f"{reviewer_summary_path}: missing triage line for {proposal_id}")
+                else:
+                    if isinstance(confidence_reason_codes, list) and all(
+                        isinstance(reason_code, str) for reason_code in confidence_reason_codes
+                    ):
+                        expected_reason_text = ", ".join(confidence_reason_codes)
+                        if not expected_reason_text:
+                            expected_reason_text = "none"
+                        expected_line = (
+                            f"- {proposal_id} | confidence={confidence_score} ({confidence_band}) "
+                            f"| reasons={expected_reason_text} | action={review_action}"
+                        )
+                        if summary_line != expected_line:
+                            errors.append(f"{reviewer_summary_path}: triage line mismatch for {proposal_id}")
 
             selection_policy = evidence.get("selection_policy")
             if not isinstance(selection_policy, dict):

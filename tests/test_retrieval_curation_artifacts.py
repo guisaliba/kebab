@@ -7,7 +7,12 @@ from pathlib import Path
 import yaml
 
 from scripts.lib.paths import ROOT
-from scripts.lib.retrieval_curation import _extract_intent, _normalize_citation_marker
+from scripts.lib.retrieval_curation import (
+    _compute_confidence_assessment,
+    _extract_intent,
+    _normalize_citation_marker,
+    _review_action_for_confidence,
+)
 from scripts.lib.validation import validate_review_package
 
 
@@ -86,6 +91,10 @@ def test_curate_generates_retrieval_assist_artifacts_and_never_writes_wiki() -> 
         assert f"staging/reviews/{review_id}/proposed/wiki/" in proposal["target_proposed_path"]
         assert proposal["intended_wiki_path"].startswith("wiki/")
         assert proposal["change_type"] in {"append_section", "update_section", "new_note_link", "conflict_flag"}
+        assert isinstance(proposal["confidence_score"], float)
+        assert proposal["confidence_band"] in {"high", "medium", "low"}
+        assert isinstance(proposal["confidence_reason_codes"], list)
+        assert proposal["review_action"] in {"quick-approve", "normal-review", "deep-review"}
 
         evidence_path = assist_dir / "evidence" / f"{proposal['evidence_bundle_id']}.yaml"
         evidence = yaml.safe_load(evidence_path.read_text(encoding="utf-8"))
@@ -99,6 +108,16 @@ def test_curate_generates_retrieval_assist_artifacts_and_never_writes_wiki() -> 
         assert isinstance(evidence["winner"]["score"], float)
         assert isinstance(evidence["winner"]["explain_payload"], dict)
         assert isinstance(evidence["supporting_hits"], list)
+        assert isinstance(evidence["confidence_assessment"], dict)
+        assert isinstance(evidence["confidence_assessment"]["score"], float)
+        assert evidence["confidence_assessment"]["band"] in {"high", "medium", "low"}
+        assert isinstance(evidence["confidence_assessment"]["reason_codes"], list)
+        assert isinstance(evidence["confidence_assessment"]["factor_breakdown"], dict)
+        assert evidence["confidence_assessment"]["review_action"] in {"quick-approve", "normal-review", "deep-review"}
+        assert proposal["confidence_score"] == evidence["confidence_assessment"]["score"]
+        assert proposal["confidence_band"] == evidence["confidence_assessment"]["band"]
+        assert proposal["confidence_reason_codes"] == evidence["confidence_assessment"]["reason_codes"]
+        assert proposal["review_action"] == evidence["confidence_assessment"]["review_action"]
         for supporting_hit in evidence["supporting_hits"]:
             assert supporting_hit["path"] != evidence["winner"]["path"]
             assert isinstance(supporting_hit["score"], float)
@@ -114,6 +133,12 @@ def test_curate_generates_retrieval_assist_artifacts_and_never_writes_wiki() -> 
             "alias_plus_fuzzy_interaction",
             "none",
         }
+        reviewer_summary = (assist_dir / "reviewer-summary.md").read_text(encoding="utf-8")
+        triage_line = (
+            f"- {proposal['proposal_id']} | confidence={proposal['confidence_score']} ({proposal['confidence_band']}) "
+            f"| reasons={', '.join(proposal['confidence_reason_codes']) or 'none'} | action={proposal['review_action']}"
+        )
+        assert triage_line in reviewer_summary
 
         second = subprocess.run(
             [sys.executable, str(ROOT / "scripts" / "curate" / "main.py"), "--review-id", review_id],
@@ -209,19 +234,27 @@ def test_review_validator_enforces_retrieval_assist_contract_fields() -> None:
 
         proposals_path = assist_dir / "proposals.jsonl"
         broken_proposal = {
+            "proposal_id": "PRP-0001",
             "target_proposed_path": f"staging/reviews/{review_id}/proposed/wiki/platforms/meta-ads.md",
             "intended_wiki_path": "wiki/platforms/meta-ads.md",
             "change_type": "update_section",
+            "summary": "test summary",
             "evidence_bundle_id": "EV-0001",
+            "review_status": "proposed",
+            "confidence_score": 1.5,
+            "confidence_band": "invalid",
+            "confidence_reason_codes": ["invalid_reason"],
+            "review_action": "approve",
         }
         proposals_path.write_text(json.dumps(broken_proposal, ensure_ascii=False) + "\n", encoding="utf-8")
 
         errors = validate_review_package(review_dir)
         assert any("review_id mismatch" in error for error in errors)
         assert any("proposal_count mismatch" in error for error in errors)
-        assert any("missing required field proposal_id" in error for error in errors)
-        assert any("missing required field summary" in error for error in errors)
-        assert any("missing required field review_status" in error for error in errors)
+        assert any("confidence_score must be numeric in [0,1]" in error for error in errors)
+        assert any("invalid confidence_band" in error for error in errors)
+        assert any("confidence_reason_codes[1] invalid value" in error for error in errors)
+        assert any("invalid review_action" in error for error in errors)
         assert any("evidence_bundle_paths do not match proposals.jsonl evidence bundles" in error for error in errors)
     finally:
         if review_dir.exists():
@@ -336,3 +369,46 @@ def test_citation_marker_parsing_is_conservative_and_deterministic() -> None:
 
     invalid = _normalize_citation_marker("[Sources: SRC-2026-0001; incomplete]")
     assert invalid == []
+
+
+def test_confidence_mapping_uses_highest_scrutiny_rule() -> None:
+    assert _review_action_for_confidence(band="high", reason_codes=[]) == "quick-approve"
+    assert _review_action_for_confidence(band="high", reason_codes=["single_supporting_context"]) == "normal-review"
+    assert _review_action_for_confidence(band="high", reason_codes=["low_citation_coverage"]) == "deep-review"
+
+    assessment = _compute_confidence_assessment(
+        linked_claims=[],
+        normalized_citations=[],
+        supporting_hits=[],
+        quality_flags=["weak_linked_claim_coverage", "single_supporting_context"],
+    )
+    assert assessment["band"] == "low"
+    assert assessment["review_action"] == "deep-review"
+
+
+def test_validate_review_package_returns_errors_not_raises_on_nonstring_reason_codes() -> None:
+    review_id = "REV-2099-9010"
+    review_dir, _ = _build_review_fixture(review_id)
+    try:
+        run = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "curate" / "main.py"), "--review-id", review_id],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert run.returncode == 0, run.stderr + run.stdout
+
+        assist_dir = review_dir / "retrieval-assist"
+        proposals_path = assist_dir / "proposals.jsonl"
+        existing_lines = proposals_path.read_text(encoding="utf-8").splitlines()
+        first_proposal = json.loads(existing_lines[0])
+        first_proposal["confidence_reason_codes"] = ["valid_str", 42, None]
+        proposals_path.write_text(json.dumps(first_proposal, ensure_ascii=False) + "\n", encoding="utf-8")
+
+        errors = validate_review_package(review_dir)
+        assert isinstance(errors, list), "validate_review_package must return a list, not raise"
+        assert any("confidence_reason_codes" in error for error in errors)
+    finally:
+        if review_dir.exists():
+            shutil.rmtree(review_dir)

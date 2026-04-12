@@ -119,6 +119,10 @@ Contract notes:
 - rationale (`why_suggested`) is generated from existing `claim-ledger.jsonl` links plus citation spans when present
 - weak-case rationale stays strictly grounded in linked claims, retrieved hits, and present citation spans; no invented nearest-context explanations
 - evidence includes `quality_flags` (`weak_linked_claim_coverage`, `low_citation_coverage`, `single_supporting_context`, `duplicated_evidence_unavoidable`) for reviewer triage
+- evidence bundles compute canonical `confidence_assessment` once (`score`, `band`, `reason_codes`, `factor_breakdown`, `review_action`)
+- `proposals.jsonl` and `reviewer-summary.md` mirror confidence from evidence bundles without recomputation
+- confidence thresholds: `high >= 0.75`, `medium >= 0.45`, `low < 0.45`
+- reviewer action mapping is deterministic: `quick-approve` (high without cautionary reasons), `normal-review` (medium or high with cautionary reasons), `deep-review` (low or critical cautionary reasons)
 - malformed/partial citation marker segments are ignored conservatively (no synthetic source/evidence fields)
 - retrieval-assist never writes directly to `wiki/`
 

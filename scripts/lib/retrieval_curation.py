@@ -31,6 +31,19 @@ ALLOWED_QUALITY_FLAGS = {
     "single_supporting_context",
     "duplicated_evidence_unavoidable",
 }
+POSITIVE_REASON_CODES = {
+    "claims_linked_strong",
+    "citations_grounded",
+    "supporting_context_diverse",
+}
+CAUTIONARY_REASON_CODES = {
+    "weak_linked_claim_coverage",
+    "low_citation_coverage",
+    "single_supporting_context",
+    "duplicated_evidence_unavoidable",
+}
+ALLOWED_CONFIDENCE_BANDS = {"high", "medium", "low"}
+ALLOWED_REVIEW_ACTIONS = {"quick-approve", "normal-review", "deep-review"}
 
 # Confidence model constants are centralized here for calibration transparency.
 CONFIDENCE_MODEL_CONSTANTS = {
@@ -385,6 +398,88 @@ def _build_rationale(
     return why, risk
 
 
+def _confidence_band(score: float) -> str:
+    if score >= 0.75:
+        return "high"
+    if score >= 0.45:
+        return "medium"
+    return "low"
+
+
+def _review_action_for_confidence(*, band: str, reason_codes: list[str]) -> str:
+    cautionary = set(reason_codes).intersection(CAUTIONARY_REASON_CODES)
+    if band == "low" or {"weak_linked_claim_coverage", "low_citation_coverage", "duplicated_evidence_unavoidable"}.intersection(
+        cautionary
+    ):
+        return "deep-review"
+    if band == "medium" or (band == "high" and cautionary):
+        return "normal-review"
+    return "quick-approve"
+
+
+def _compute_confidence_assessment(
+    *,
+    linked_claims: list[dict[str, Any]],
+    normalized_citations: list[dict[str, str]],
+    supporting_hits: list[dict[str, Any]],
+    quality_flags: list[str],
+) -> dict[str, Any]:
+    linked_claim_factor = min(len(linked_claims) / 3.0, 1.0)
+    citation_factor = min(len(normalized_citations) / 2.0, 1.0)
+    supporting_diversity_factor = 1.0 if len(supporting_hits) >= 2 else 0.5 if len(supporting_hits) == 1 else 0.0
+
+    base_score = (
+        0.45 * linked_claim_factor
+        + 0.35 * citation_factor
+        + 0.20 * supporting_diversity_factor
+    )
+
+    penalty = 0.0
+    if "weak_linked_claim_coverage" in quality_flags:
+        penalty += 0.25
+    if "low_citation_coverage" in quality_flags:
+        penalty += 0.2
+    if "single_supporting_context" in quality_flags:
+        penalty += 0.1
+    if "duplicated_evidence_unavoidable" in quality_flags:
+        penalty += 0.1
+
+    score = max(0.0, min(1.0, round(base_score - penalty, 6)))
+    band = _confidence_band(score)
+
+    candidate_positive_codes: list[str] = []
+    if linked_claim_factor >= 0.67:
+        candidate_positive_codes.append("claims_linked_strong")
+    if citation_factor >= 0.5:
+        candidate_positive_codes.append("citations_grounded")
+    if supporting_diversity_factor >= 1.0:
+        candidate_positive_codes.append("supporting_context_diverse")
+    reason_codes: list[str] = [c for c in candidate_positive_codes if c in POSITIVE_REASON_CODES]
+    for flag in quality_flags:
+        if flag in CAUTIONARY_REASON_CODES:
+            reason_codes.append(flag)
+    # stable deterministic order and de-duplication
+    reason_codes = list(dict.fromkeys(reason_codes))
+
+    review_action = _review_action_for_confidence(band=band, reason_codes=reason_codes)
+    if review_action not in ALLOWED_REVIEW_ACTIONS:
+        review_action = "normal-review"
+
+    return {
+        "score": score,
+        "band": band if band in ALLOWED_CONFIDENCE_BANDS else "medium",
+        "reason_codes": reason_codes,
+        "factor_breakdown": {
+            "linked_claim_factor": round(linked_claim_factor, 6),
+            "citation_factor": round(citation_factor, 6),
+            "supporting_diversity_factor": round(supporting_diversity_factor, 6),
+            "base_score": round(base_score, 6),
+            "penalty": round(penalty, 6),
+        },
+        "review_action": review_action,
+    }
+
+
 def generate_retrieval_assist(review_id: str, overwrite: bool = False) -> Path:
     review_dir = ROOT / "staging" / "reviews" / review_id
     if not review_dir.exists():
@@ -470,6 +565,12 @@ def generate_retrieval_assist(review_id: str, overwrite: bool = False) -> Path:
         if duplicated_unavoidable:
             quality_flags.append("duplicated_evidence_unavoidable")
         quality_flags = [flag for flag in quality_flags if flag in ALLOWED_QUALITY_FLAGS]
+        confidence_assessment = _compute_confidence_assessment(
+            linked_claims=linked_claims,
+            normalized_citations=normalized_citations,
+            supporting_hits=supporting_hits,
+            quality_flags=quality_flags,
+        )
 
         change_type = _change_type_from_path(proposed_path)
         if change_type not in ALLOWED_CHANGE_TYPES:
@@ -501,6 +602,7 @@ def generate_retrieval_assist(review_id: str, overwrite: bool = False) -> Path:
                 ],
             },
             "quality_flags": quality_flags,
+            "confidence_assessment": confidence_assessment,
             "rationale_claim_ids": [str(claim.get("claim_id", "")) for claim in linked_claims[:3]],
             "why_suggested": why_suggested,
             "risk_or_uncertainty": risk_or_uncertainty,
@@ -518,6 +620,10 @@ def generate_retrieval_assist(review_id: str, overwrite: bool = False) -> Path:
             "summary": why_suggested,
             "evidence_bundle_id": evidence_bundle_id,
             "review_status": "proposed",
+            "confidence_score": confidence_assessment["score"],
+            "confidence_band": confidence_assessment["band"],
+            "confidence_reason_codes": confidence_assessment["reason_codes"],
+            "review_action": confidence_assessment["review_action"],
         }
         proposals.append(proposal)
         proposal_paths.append(proposed_path)
@@ -534,15 +640,26 @@ def generate_retrieval_assist(review_id: str, overwrite: bool = False) -> Path:
         f"- review_id: {review_id}",
         f"- proposals: {len(proposals)}",
         "",
+        "## Triage",
     ]
+    for proposal in proposals:
+        reasons = ", ".join(proposal.get("confidence_reason_codes", [])) or "none"
+        reviewer_summary.append(
+            "- "
+            f"{proposal['proposal_id']} | confidence={proposal.get('confidence_score', 0.0)} ({proposal.get('confidence_band', 'medium')}) "
+            f"| reasons={reasons} | action={proposal.get('review_action', 'normal-review')}"
+        )
+    reviewer_summary.append("")
     for proposal in proposals:
         reviewer_summary.extend(
             [
                 f"## {proposal['proposal_id']} — {proposal['change_type']}",
                 f"- target: {proposal['target_proposed_path']}",
                 f"- intended_wiki_path: {proposal['intended_wiki_path']}",
+                f"- confidence: {proposal.get('confidence_score', 0.0)} ({proposal.get('confidence_band', 'medium')})",
+                f"- confidence_reasons: {', '.join(proposal.get('confidence_reason_codes', [])) or 'none'}",
                 f"- why: {proposal['summary']}",
-                "- reviewer_action: approve | reject | request edits",
+                f"- reviewer_action: {proposal.get('review_action', 'normal-review')}",
                 "",
             ]
         )
