@@ -16,6 +16,7 @@ from scripts.lib.querying import (
     search_wiki,
     should_use_raw_fallback,
 )
+from scripts.lib.retrieval_curation import CONFIDENCE_MODEL_CONSTANTS
 
 SUPPORTED_CATEGORIES = (
     "wiki-only",
@@ -25,6 +26,36 @@ SUPPORTED_CATEGORIES = (
     "mixed-ptbr-en",
 )
 _SUPPORTED_CATEGORIES_SET = frozenset(SUPPORTED_CATEGORIES)
+NORMALIZED_REVIEW_OUTCOMES = ("approve", "approve_with_edits", "reject")
+REVIEW_OUTCOME_NORMALIZATION_MAP = {
+    "approve": "approve",
+    "approved": "approve",
+    "approved_clean": "approve",
+    "accept": "approve",
+    "approve_with_edits": "approve_with_edits",
+    "approved_with_edits": "approve_with_edits",
+    "approved-edits": "approve_with_edits",
+    "request_edits": "approve_with_edits",
+    "revise": "approve_with_edits",
+    "reject": "reject",
+    "rejected": "reject",
+    "decline": "reject",
+}
+REVIEW_ACTION_SCRUTINY = {
+    "quick-approve": 0,
+    "normal-review": 1,
+    "deep-review": 2,
+}
+REVIEW_OUTCOME_REQUIRED_SCRUTINY = {
+    "approve": 0,
+    "approve_with_edits": 1,
+    "reject": 2,
+}
+MATERIAL_MISMATCH_THRESHOLDS = {
+    "action_alignment_rate_min": 0.75,
+    "optimistic_miss_rate_max": 0.20,
+    "conservative_miss_rate_max": 0.35,
+}
 
 
 def _load_dataset(path: Path) -> dict[str, Any]:
@@ -95,6 +126,265 @@ def _run_single_query(question: str, fuzzy: bool, use_aliases: bool = True) -> d
         "wiki_paths": [str(hit.path.relative_to(ROOT)) for hit in wiki_hits[:3]],
         "raw_paths": [],
         "winner_trace": wiki_hits[0].explain_payload() if wiki_hits else None,
+    }
+
+
+def _normalize_reviewer_outcome(raw_value: Any) -> str | None:
+    if not isinstance(raw_value, str):
+        return None
+    token = raw_value.strip().lower().replace(" ", "_")
+    return REVIEW_OUTCOME_NORMALIZATION_MAP.get(token)
+
+
+def _action_alignment(predicted_action: str, normalized_outcome: str) -> dict[str, Any]:
+    predicted_level = REVIEW_ACTION_SCRUTINY.get(predicted_action)
+    outcome_level = REVIEW_OUTCOME_REQUIRED_SCRUTINY.get(normalized_outcome)
+    if predicted_level is None or outcome_level is None:
+        return {"aligned": False, "direction": "unknown"}
+    if predicted_level < outcome_level:
+        return {"aligned": False, "direction": "optimistic"}
+    if predicted_level > outcome_level:
+        return {"aligned": False, "direction": "conservative"}
+    return {"aligned": True, "direction": "aligned"}
+
+
+def _load_reviewer_outcomes(path: Path) -> dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    metadata = payload.get("metadata", {})
+    if not isinstance(metadata, dict):
+        raise SystemExit("reviewer outcomes metadata must be an object")
+    for key in {"dataset_version", "dataset_scope", "updated_at", "dataset_origin"}:
+        if key not in metadata:
+            raise SystemExit(f"reviewer outcomes metadata missing required key: {key}")
+    outcomes = payload.get("outcomes")
+    if not isinstance(outcomes, list):
+        raise SystemExit("reviewer outcomes payload must include outcomes list")
+    return payload
+
+
+def _band_reliability(entries: list[dict[str, Any]]) -> dict[str, Any]:
+    by_band: dict[str, dict[str, int]] = {
+        "high": {"total": 0, "approve": 0, "approve_with_edits": 0, "reject": 0},
+        "medium": {"total": 0, "approve": 0, "approve_with_edits": 0, "reject": 0},
+        "low": {"total": 0, "approve": 0, "approve_with_edits": 0, "reject": 0},
+    }
+    for entry in entries:
+        band = entry.get("predicted_confidence_band")
+        outcome = entry.get("normalized_outcome")
+        if band not in by_band or outcome not in NORMALIZED_REVIEW_OUTCOMES:
+            continue
+        by_band[band]["total"] += 1
+        by_band[band][outcome] += 1
+
+    def _rate(count: int, total: int) -> float:
+        return round((count / total), 6) if total else 0.0
+
+    report: dict[str, Any] = {}
+    for band, counts in by_band.items():
+        total = counts["total"]
+        report[band] = {
+            "count": total,
+            "approve_rate": _rate(counts["approve"], total),
+            "approve_with_edits_rate": _rate(counts["approve_with_edits"], total),
+            "reject_rate": _rate(counts["reject"], total),
+        }
+    return report
+
+
+def _build_calibration_report(reviewer_outcomes: dict[str, Any]) -> dict[str, Any]:
+    entries: list[dict[str, Any]] = []
+    unknown_outcome_count = 0
+    for outcome in reviewer_outcomes["outcomes"]:
+        if not isinstance(outcome, dict):
+            continue
+        normalized = _normalize_reviewer_outcome(outcome.get("actual_reviewer_decision"))
+        if normalized is None:
+            unknown_outcome_count += 1
+            continue
+        predicted_action = str(outcome.get("predicted_review_action", ""))
+        predicted_band = str(outcome.get("predicted_confidence_band", ""))
+        alignment = _action_alignment(predicted_action, normalized)
+        entries.append(
+            {
+                "review_id": outcome.get("review_id"),
+                "proposal_id": outcome.get("proposal_id"),
+                "evidence_bundle_id": outcome.get("evidence_bundle_id"),
+                "predicted_confidence_score": outcome.get("predicted_confidence_score"),
+                "predicted_confidence_band": predicted_band,
+                "predicted_review_action": predicted_action,
+                "actual_reviewer_decision": outcome.get("actual_reviewer_decision"),
+                "normalized_outcome": normalized,
+                "alignment": alignment,
+            }
+        )
+
+    total = len(entries)
+    aligned = sum(1 for item in entries if item["alignment"]["aligned"])
+    optimistic = sum(1 for item in entries if item["alignment"]["direction"] == "optimistic")
+    conservative = sum(1 for item in entries if item["alignment"]["direction"] == "conservative")
+
+    action_alignment_rate = round((aligned / total), 6) if total else 0.0
+    optimistic_rate = round((optimistic / total), 6) if total else 0.0
+    conservative_rate = round((conservative / total), 6) if total else 0.0
+    gate = {
+        "thresholds": MATERIAL_MISMATCH_THRESHOLDS,
+        "triggered_checks": {
+            "action_alignment_rate_below_min": action_alignment_rate < MATERIAL_MISMATCH_THRESHOLDS["action_alignment_rate_min"],
+            "optimistic_miss_rate_above_max": optimistic_rate > MATERIAL_MISMATCH_THRESHOLDS["optimistic_miss_rate_max"],
+            "conservative_miss_rate_above_max": conservative_rate > MATERIAL_MISMATCH_THRESHOLDS["conservative_miss_rate_max"],
+        },
+    }
+    gate["material_mismatch_triggered"] = any(gate["triggered_checks"].values())
+
+    def _band_from_score(score: float, thresholds: dict[str, float]) -> str:
+        if score >= thresholds["high_min"]:
+            return "high"
+        if score >= thresholds["medium_min"]:
+            return "medium"
+        return "low"
+
+    def _action_from_band(band: str) -> str:
+        if band == "high":
+            return "quick-approve"
+        if band == "medium":
+            return "normal-review"
+        return "deep-review"
+
+    def _alignment_summary(items: list[dict[str, Any]]) -> dict[str, Any]:
+        item_total = len(items)
+        item_aligned = sum(1 for item in items if item["alignment"]["aligned"])
+        item_optimistic = sum(1 for item in items if item["alignment"]["direction"] == "optimistic")
+        item_conservative = sum(1 for item in items if item["alignment"]["direction"] == "conservative")
+        return {
+            "aligned_count": item_aligned,
+            "total": item_total,
+            "rate": round((item_aligned / item_total), 6) if item_total else 0.0,
+            "optimistic_count": item_optimistic,
+            "optimistic_rate": round((item_optimistic / item_total), 6) if item_total else 0.0,
+            "conservative_count": item_conservative,
+            "conservative_rate": round((item_conservative / item_total), 6) if item_total else 0.0,
+        }
+
+    tuning: dict[str, Any] = {
+        "performed": False,
+        "reason": "report_only_pass",
+        "constants_changed": {},
+    }
+    dataset_origin = str(reviewer_outcomes["metadata"].get("dataset_origin", "")).strip().lower()
+    if gate["material_mismatch_triggered"]:
+        if dataset_origin == "synthetic":
+            tuning = {
+                "performed": False,
+                "reason": "mismatch_detected_but_synthetic_dataset_not_tuned",
+                "constants_changed": {},
+            }
+        else:
+            current_thresholds = CONFIDENCE_MODEL_CONSTANTS["band_thresholds"]
+            candidates = []
+            for high_min in (0.70, 0.75, 0.80, 0.85):
+                for medium_min in (0.40, 0.45, 0.50, 0.55, 0.60):
+                    if medium_min >= high_min:
+                        continue
+                    recalculated: list[dict[str, Any]] = []
+                    for item in entries:
+                        score = item.get("predicted_confidence_score")
+                        if not isinstance(score, (int, float)):
+                            continue
+                        band = _band_from_score(float(score), {"high_min": high_min, "medium_min": medium_min})
+                        action = _action_from_band(band)
+                        alignment = _action_alignment(action, str(item["normalized_outcome"]))
+                        recalculated.append(
+                            {
+                                "alignment": alignment,
+                            }
+                        )
+                    summary = _alignment_summary(recalculated)
+                    candidates.append(
+                        {
+                            "high_min": high_min,
+                            "medium_min": medium_min,
+                            "summary": summary,
+                        }
+                    )
+            candidates.sort(
+                key=lambda item: (
+                    -item["summary"]["rate"],
+                    item["summary"]["optimistic_rate"],
+                    item["summary"]["conservative_rate"],
+                )
+            )
+            best = candidates[0] if candidates else None
+            if best is not None and (
+                best["summary"]["rate"] > action_alignment_rate
+                or best["summary"]["optimistic_rate"] < optimistic_rate
+                or best["summary"]["conservative_rate"] < conservative_rate
+            ):
+                tuning = {
+                    "performed": True,
+                    "reason": "mismatch_detected_and_threshold_tuning_applied",
+                    "constants_changed": {
+                        "band_thresholds.high_min": {
+                            "old": current_thresholds["high_min"],
+                            "new": best["high_min"],
+                        },
+                        "band_thresholds.medium_min": {
+                            "old": current_thresholds["medium_min"],
+                            "new": best["medium_min"],
+                        },
+                    },
+                    "before_metrics": {
+                        "action_alignment_rate": action_alignment_rate,
+                        "optimistic_miss_rate": optimistic_rate,
+                        "conservative_miss_rate": conservative_rate,
+                    },
+                    "after_metrics": {
+                        "action_alignment_rate": best["summary"]["rate"],
+                        "optimistic_miss_rate": best["summary"]["optimistic_rate"],
+                        "conservative_miss_rate": best["summary"]["conservative_rate"],
+                    },
+                }
+            else:
+                tuning = {
+                    "performed": False,
+                    "reason": "mismatch_detected_no_better_threshold_candidate",
+                    "constants_changed": {},
+                }
+
+    return {
+        "dataset_metadata": reviewer_outcomes["metadata"],
+        "confidence_model_constants": CONFIDENCE_MODEL_CONSTANTS,
+        "normalization": {
+            "allowed_normalized_outcomes": list(NORMALIZED_REVIEW_OUTCOMES),
+            "normalization_map": REVIEW_OUTCOME_NORMALIZATION_MAP,
+            "unknown_excluded_count": unknown_outcome_count,
+        },
+        "action_alignment_criteria": {
+            "quick-approve": ["approve"],
+            "normal-review": ["approve", "approve_with_edits"],
+            "deep-review": ["approve_with_edits", "reject"],
+        },
+        "metrics": {
+            "evaluated_outcomes_count": total,
+            "action_alignment": {
+                "aligned_count": aligned,
+                "total": total,
+                "rate": action_alignment_rate,
+            },
+            "optimistic_miss": {
+                "count": optimistic,
+                "total": total,
+                "rate": optimistic_rate,
+            },
+            "conservative_miss": {
+                "count": conservative,
+                "total": total,
+                "rate": conservative_rate,
+            },
+            "band_reliability": _band_reliability(entries),
+        },
+        "material_mismatch_gate": gate,
+        "tuning": tuning,
+        "entries": entries,
     }
 
 
@@ -345,7 +635,7 @@ def _aggregate_metrics(cases: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def evaluate(dataset: dict[str, Any]) -> dict[str, Any]:
+def evaluate(dataset: dict[str, Any], calibration_payload: dict[str, Any] | None = None) -> dict[str, Any]:
     queries: list[dict[str, Any]] = dataset["queries"]
     evaluated: list[dict[str, Any]] = []
     metric_inputs: list[dict[str, Any]] = []
@@ -417,7 +707,7 @@ def evaluate(dataset: dict[str, Any]) -> dict[str, Any]:
         for category, failures in worst_failures.items()
     }
 
-    return {
+    report = {
         "dataset_metadata": dataset["metadata"],
         "evaluated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "metrics": {
@@ -428,6 +718,9 @@ def evaluate(dataset: dict[str, Any]) -> dict[str, Any]:
         "diagnostic_summary": {"classification_counts": classification_counts},
         "queries": evaluated,
     }
+    if calibration_payload is not None:
+        report["confidence_calibration"] = _build_calibration_report(calibration_payload)
+    return report
 
 
 def main() -> None:
@@ -442,6 +735,11 @@ def main() -> None:
         default="exports/evals",
         help="Evaluation output directory (writes only under exports/evals by policy).",
     )
+    parser.add_argument(
+        "--reviewer-outcomes",
+        default="tests/fixtures/reviewer_outcomes/synthetic_outcomes.json",
+        help="Path to reviewer outcome dataset for confidence calibration.",
+    )
     args = parser.parse_args()
 
     output_dir = (ROOT / args.output_dir).resolve()
@@ -451,7 +749,9 @@ def main() -> None:
 
     dataset_path = (ROOT / args.dataset).resolve()
     dataset = _load_dataset(dataset_path)
-    report = evaluate(dataset)
+    outcomes_path = (ROOT / args.reviewer_outcomes).resolve()
+    outcomes_payload = _load_reviewer_outcomes(outcomes_path)
+    report = evaluate(dataset, calibration_payload=outcomes_payload)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     filename = f"retrieval-eval-{report['evaluated_at'].replace(':', '').replace('-', '')}-{os.getpid()}.json"
@@ -464,6 +764,14 @@ def main() -> None:
     print(f"canonical_vs_source_note_correctness: {global_metrics['canonical_vs_source_note_correctness']}")
     print(f"raw_fallback_correctness: {global_metrics['raw_fallback_correctness']}")
     print(f"fuzzy_help_vs_harm: {global_metrics['fuzzy_help_vs_harm']}")
+    calibration = report.get("confidence_calibration", {})
+    if calibration:
+        calibration_metrics = calibration.get("metrics", {})
+        print(f"confidence_action_alignment: {calibration_metrics.get('action_alignment')}")
+        print(f"confidence_optimistic_miss: {calibration_metrics.get('optimistic_miss')}")
+        print(f"confidence_conservative_miss: {calibration_metrics.get('conservative_miss')}")
+        gate = calibration.get("material_mismatch_gate", {})
+        print(f"confidence_material_mismatch_gate: {gate}")
 
 
 if __name__ == "__main__":

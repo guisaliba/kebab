@@ -32,3 +32,10 @@ def test_eval_runner_outputs_required_metrics() -> None:
     assert "fuzzy_help_vs_harm" in metrics
     assert "raw_fallback_correctness" in metrics
     assert metrics["top1_correctness"]["total"] >= 12
+    assert "confidence_calibration" in payload
+    calibration = payload["confidence_calibration"]
+    assert calibration["dataset_metadata"]["dataset_origin"] == "synthetic"
+    assert calibration["normalization"]["unknown_excluded_count"] >= 1
+    assert "material_mismatch_gate" in calibration
+    assert "action_alignment" in calibration["metrics"]
+    assert "band_reliability" in calibration["metrics"]

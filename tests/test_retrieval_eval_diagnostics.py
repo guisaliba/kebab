@@ -3,7 +3,7 @@ import subprocess
 import sys
 
 from scripts.lib.paths import ROOT
-from scripts.eval.main import _alias_influence
+from scripts.eval.main import _action_alignment, _alias_influence, _normalize_reviewer_outcome
 
 
 def test_eval_outputs_per_query_diagnostics_and_worst_failures() -> None:
@@ -107,3 +107,16 @@ def test_alias_influence_classifies_alias_plus_fuzzy_interaction() -> None:
         _result_with_winner("wiki/overview.md"),
     )
     assert outcome["primary_driver"] == "alias_plus_fuzzy_interaction"
+
+
+def test_reviewer_outcome_normalization_is_deterministic() -> None:
+    assert _normalize_reviewer_outcome("approved") == "approve"
+    assert _normalize_reviewer_outcome("request_edits") == "approve_with_edits"
+    assert _normalize_reviewer_outcome("rejected") == "reject"
+    assert _normalize_reviewer_outcome("unknown") is None
+
+
+def test_action_alignment_direction_labels() -> None:
+    assert _action_alignment("quick-approve", "approve") == {"aligned": True, "direction": "aligned"}
+    assert _action_alignment("quick-approve", "reject") == {"aligned": False, "direction": "optimistic"}
+    assert _action_alignment("deep-review", "approve") == {"aligned": False, "direction": "conservative"}

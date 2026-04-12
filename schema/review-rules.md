@@ -21,3 +21,9 @@
 - `quality_flags` allowed values for this phase: `weak_linked_claim_coverage`, `low_citation_coverage`, `single_supporting_context`, `duplicated_evidence_unavoidable`.
 - Weak-case rationale must stay strictly grounded to linked claims, retrieved hits, and present citation spans only.
 - Reruns fail by default if retrieval-assist artifacts already exist; rerun with `--overwrite` to replace and update `generated_at`.
+- Confidence calibration against reviewer outcomes uses deterministic normalization into `approve`, `approve_with_edits`, or `reject`.
+- Outcome normalization policy: canonical values map directly, legacy aliases map via fixed lookup, unknown values are excluded and counted explicitly.
+- Action-alignment policy: `quick-approve -> approve`, `normal-review -> approve|approve_with_edits`, `deep-review -> approve_with_edits|reject`.
+- Tuning gate is explicit and non-hand-wavy: tune only when one or more thresholds are violated (`action_alignment_rate < 0.75`, `optimistic_miss_rate > 0.20`, `conservative_miss_rate > 0.35`).
+- Calibration is evaluation-first: report current constants first; tuning is conditional and must include before/after metrics plus exact constant old/new values.
+- Early reviewer-outcome fixtures must remain explicitly synthetic/test-like (`dataset_origin: synthetic`) until enough real decisions exist.
