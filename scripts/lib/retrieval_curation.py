@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -302,7 +303,7 @@ def generate_retrieval_assist(review_id: str, overwrite: bool = False) -> Path:
         search_variants = _collect_search_variants(question)
         consulted_layers, search_hits = search_variants[(False, True)]
         supporting_hits = [_hit_payload(hit) for hit in search_hits]
-        winner = supporting_hits[0] if supporting_hits else {
+        winner = deepcopy(supporting_hits[0]) if supporting_hits else {
             "path": "",
             "snippet": "",
             "source_markers": [],

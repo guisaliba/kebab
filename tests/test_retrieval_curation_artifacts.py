@@ -89,6 +89,9 @@ def test_curate_generates_retrieval_assist_artifacts_and_never_writes_wiki() -> 
 
         evidence_path = assist_dir / "evidence" / f"{proposal['evidence_bundle_id']}.yaml"
         evidence = yaml.safe_load(evidence_path.read_text(encoding="utf-8"))
+        evidence_text = evidence_path.read_text(encoding="utf-8")
+        assert "&id" not in evidence_text
+        assert "*id" not in evidence_text
         assert "grounding" in evidence
         assert isinstance(evidence["grounding"]["normalized_citations"], list)
         assert isinstance(evidence["grounding"]["source_ids"], list)
