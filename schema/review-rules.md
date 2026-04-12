@@ -33,3 +33,8 @@
 - Tuning gate is explicit and non-hand-wavy: tune only when one or more thresholds are violated (`action_alignment_rate < 0.75`, `optimistic_miss_rate > 0.20`, `conservative_miss_rate > 0.35`).
 - Calibration is evaluation-first: report current constants first; tuning is conditional and must include before/after metrics plus exact constant old/new values.
 - Early reviewer-outcome fixtures must remain explicitly synthetic/test-like (`dataset_origin: synthetic`) until enough real decisions exist.
+- Real reviewer outcomes are captured locally at `staging/reviewer-outcomes/outcomes.jsonl`.
+- Outcome capture is append-only in 4E: duplicate key `(review_id, proposal_id, evidence_bundle_id)` must be rejected; no overwrite mode.
+- Calibration report must include dataset provenance classification: `synthetic`, `real`, or `mixed`.
+- Calibration readiness must include class-balance visibility across normalized outcomes (`approve`, `approve_with_edits`, `reject`), not only total counts.
+- 4E keeps automatic tuning disabled even when mismatch exists; calibration is readiness-oriented until real outcome coverage is sufficient.

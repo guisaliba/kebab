@@ -35,7 +35,12 @@ def test_eval_runner_outputs_required_metrics() -> None:
     assert "confidence_calibration" in payload
     calibration = payload["confidence_calibration"]
     assert calibration["dataset_metadata"]["dataset_origin"] == "synthetic"
+    assert calibration["dataset_provenance"] == "synthetic"
     assert calibration["normalization"]["unknown_excluded_count"] >= 1
     assert "material_mismatch_gate" in calibration
     assert "action_alignment" in calibration["metrics"]
     assert "band_reliability" in calibration["metrics"]
+    assert "class_balance" in calibration["metrics"]
+    assert "readiness" in calibration
+    assert calibration["tuning"]["performed"] is False
+    assert calibration["tuning"]["automatic_tuning_enabled"] is False

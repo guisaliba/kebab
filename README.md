@@ -206,6 +206,18 @@ Optional reviewer-outcome calibration dataset:
 python scripts/eval/main.py --reviewer-outcomes tests/fixtures/reviewer_outcomes/synthetic_outcomes.json
 ```
 
+Append a real reviewer outcome (local, append-only):
+
+```bash
+python scripts/outcomes/main.py append --review-id REV-2026-0002 --proposal-id PRP-0001 --actual-decision approved_with_edits
+```
+
+Validate local captured outcomes:
+
+```bash
+python scripts/outcomes/main.py validate
+```
+
 Evaluation notes:
 - golden query dataset: `tests/fixtures/retrieval_golden/queries.json`
 - dataset metadata fields: `dataset_version`, `dataset_scope`, `updated_at` (optional `notes`)
@@ -229,6 +241,10 @@ Evaluation notes:
     - `conservative_miss_rate > 0.35`
 - tuning is evaluation-gated: produce pure calibration report first; tune constants only when mismatch gate is triggered
 - synthetic fixture posture is explicit via metadata (`dataset_origin: synthetic`) until enough real reviewer outcomes exist
+- real reviewer outcomes are stored at `staging/reviewer-outcomes/outcomes.jsonl`
+- 4E capture is append-only and rejects duplicate keys (`review_id`, `proposal_id`, `evidence_bundle_id`)
+- calibration report includes dataset provenance (`synthetic|real|mixed`) and normalized outcome class-balance metrics
+- 4E keeps automatic tuning disabled; report output is calibration-readiness only
 
 ### Retrieval Normalization Policy
 
