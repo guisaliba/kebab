@@ -236,6 +236,19 @@ def validate_retrieval_assist_artifacts(review_dir: Path) -> list[str]:
     manifest_proposal_count: int | None = None
     manifest_proposal_paths: list[str] | None = None
     manifest_evidence_paths: list[str] | None = None
+    claim_ids: set[str] = set()
+    claim_path = review_dir / "claim-ledger.jsonl"
+    if claim_path.exists():
+        for line in claim_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                claim_payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            claim_id = claim_payload.get("claim_id")
+            if isinstance(claim_id, str) and claim_id:
+                claim_ids.add(claim_id)
 
     for filename in REQUIRED_RETRIEVAL_ASSIST_FILES:
         if not (assist_dir / filename).exists():
@@ -389,6 +402,73 @@ def validate_retrieval_assist_artifacts(review_dir: Path) -> list[str]:
             normalized_citations = grounding.get("normalized_citations")
             if not isinstance(normalized_citations, list):
                 errors.append(f"{evidence_path}: normalized_citations must be a list")
+                continue
+            source_ids = grounding.get("source_ids")
+            if not isinstance(source_ids, list):
+                errors.append(f"{evidence_path}: source_ids must be a list")
+            citation_format_version = grounding.get("citation_format_version")
+            if not isinstance(citation_format_version, str) or not citation_format_version:
+                errors.append(f"{evidence_path}: citation_format_version must be a non-empty string")
+
+            normalized_sources: list[str] = []
+            for citation_idx, citation in enumerate(normalized_citations, start=1):
+                if not isinstance(citation, dict):
+                    errors.append(f"{evidence_path}: normalized_citations[{citation_idx}] must be an object")
+                    continue
+                citation_source_id = citation.get("source_id")
+                evidence_ref = citation.get("evidence_ref")
+                if not isinstance(citation_source_id, str) or not validate_source_id(citation_source_id):
+                    errors.append(f"{evidence_path}: normalized_citations[{citation_idx}] has invalid source_id")
+                if not isinstance(evidence_ref, str) or not evidence_ref.strip():
+                    errors.append(f"{evidence_path}: normalized_citations[{citation_idx}] has invalid evidence_ref")
+                if isinstance(citation_source_id, str) and validate_source_id(citation_source_id):
+                    normalized_sources.append(citation_source_id)
+
+            if isinstance(source_ids, list):
+                expected_source_ids = sorted(set(normalized_sources))
+                if sorted(set(str(item) for item in source_ids if isinstance(item, str))) != expected_source_ids:
+                    errors.append(f"{evidence_path}: source_ids must match normalized_citations source_id values")
+
+            winner = evidence.get("winner")
+            if not isinstance(winner, dict):
+                errors.append(f"{evidence_path}: winner must be an object")
+            else:
+                winner_score = winner.get("score")
+                if not isinstance(winner_score, (int, float)):
+                    errors.append(f"{evidence_path}: winner.score must be numeric")
+                winner_explain = winner.get("explain_payload")
+                if not isinstance(winner_explain, dict):
+                    errors.append(f"{evidence_path}: winner.explain_payload must be an object")
+
+            supporting_hits = evidence.get("supporting_hits")
+            if not isinstance(supporting_hits, list):
+                errors.append(f"{evidence_path}: supporting_hits must be a list")
+            else:
+                for hit_idx, hit in enumerate(supporting_hits, start=1):
+                    if not isinstance(hit, dict):
+                        errors.append(f"{evidence_path}: supporting_hits[{hit_idx}] must be an object")
+                        continue
+                    hit_score = hit.get("score")
+                    if not isinstance(hit_score, (int, float)):
+                        errors.append(f"{evidence_path}: supporting_hits[{hit_idx}].score must be numeric")
+                    hit_explain = hit.get("explain_payload")
+                    if not isinstance(hit_explain, dict):
+                        errors.append(f"{evidence_path}: supporting_hits[{hit_idx}].explain_payload must be an object")
+
+            why_suggested = evidence.get("why_suggested")
+            if not isinstance(why_suggested, str) or not why_suggested.strip():
+                errors.append(f"{evidence_path}: why_suggested must be a non-empty string")
+
+            rationale_claim_ids = evidence.get("rationale_claim_ids")
+            if not isinstance(rationale_claim_ids, list):
+                errors.append(f"{evidence_path}: rationale_claim_ids must be a list")
+            else:
+                for claim_idx, claim_id in enumerate(rationale_claim_ids, start=1):
+                    if not isinstance(claim_id, str) or not claim_id:
+                        errors.append(f"{evidence_path}: rationale_claim_ids[{claim_idx}] must be a non-empty string")
+                        continue
+                    if claim_ids and claim_id not in claim_ids:
+                        errors.append(f"{evidence_path}: rationale_claim_ids[{claim_idx}] not found in claim-ledger.jsonl")
 
     if manifest_proposal_count is not None and manifest_proposal_count != parsed_proposal_count:
         errors.append(

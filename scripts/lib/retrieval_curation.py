@@ -2,14 +2,16 @@ from __future__ import annotations
 
 import json
 import shutil
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 from scripts.lib.frontmatter import parse_markdown_with_frontmatter
+from scripts.lib.ids import validate_source_id
 from scripts.lib.paths import ROOT
-from scripts.lib.querying import collect_source_markers, search_raw_chunks, search_wiki
+from scripts.lib.querying import SearchHit, collect_source_markers, search_raw_chunks, search_wiki
 from scripts.lib.time import utc_now_iso8601
 from scripts.lib.validation import load_yaml
 
@@ -23,10 +25,13 @@ ALIAS_ATTRIBUTION_CLASSES = {
     "none",
 }
 RETRIEVAL_POLICY_VERSION = "phase4-v1"
+CLAIM_CONFIDENCE_WEIGHT = {"high": 3, "medium": 2, "low": 1}
 
 
-def _winner_path(paths: list[str]) -> str | None:
-    return paths[0] if paths else None
+def _winner_path(hits: list[SearchHit]) -> str | None:
+    if not hits:
+        return None
+    return str(hits[0].path.relative_to(ROOT))
 
 
 def _normalize_intent_text(value: str) -> str:
@@ -45,7 +50,7 @@ def _combine_intent_parts(primary: str, secondary: str) -> str:
     return f"{primary_clean} {secondary_clean}"
 
 
-def _search_paths(question: str, *, fuzzy: bool, aliases: bool) -> tuple[str, list[str], list[str]]:
+def _search_hits(question: str, *, fuzzy: bool, aliases: bool) -> tuple[str, list[SearchHit]]:
     wiki_hits = search_wiki(
         question,
         min_score=0.8,
@@ -54,46 +59,38 @@ def _search_paths(question: str, *, fuzzy: bool, aliases: bool) -> tuple[str, li
         use_aliases=aliases,
     )
     if wiki_hits:
-        return (
-            "wiki",
-            [str(hit.path.relative_to(ROOT)) for hit in wiki_hits[:3]],
-            [],
-        )
+        return ("wiki", wiki_hits[:3])
     raw_hits = search_raw_chunks(
         question,
         min_score=0.6,
         fuzzy=fuzzy,
         use_aliases=aliases,
     )
-    return (
-        "wiki+raw",
-        [],
-        [str(hit.path.relative_to(ROOT)) for hit in raw_hits[:3]],
-    )
+    return ("wiki+raw", raw_hits[:3])
 
 
-def _collect_search_variants(question: str) -> dict[tuple[bool, bool], tuple[str, list[str], list[str]]]:
-    variants: dict[tuple[bool, bool], tuple[str, list[str], list[str]]] = {}
+def _collect_search_variants(question: str) -> dict[tuple[bool, bool], tuple[str, list[SearchHit]]]:
+    variants: dict[tuple[bool, bool], tuple[str, list[SearchHit]]] = {}
     for fuzzy, aliases in ((False, False), (False, True), (True, False), (True, True)):
-        variants[(fuzzy, aliases)] = _search_paths(question, fuzzy=fuzzy, aliases=aliases)
+        variants[(fuzzy, aliases)] = _search_hits(question, fuzzy=fuzzy, aliases=aliases)
     return variants
 
 
 def _classify_alias_influence(
     question: str,
     *,
-    search_variants: dict[tuple[bool, bool], tuple[str, list[str], list[str]]] | None = None,
+    search_variants: dict[tuple[bool, bool], tuple[str, list[SearchHit]]] | None = None,
 ) -> str:
     variants = search_variants or _collect_search_variants(question)
-    _, wiki_none, raw_none = variants[(False, False)]
-    _, wiki_alias, raw_alias = variants[(False, True)]
-    _, wiki_fuzzy, raw_fuzzy = variants[(True, False)]
-    _, wiki_both, raw_both = variants[(True, True)]
+    _, hits_none = variants[(False, False)]
+    _, hits_alias = variants[(False, True)]
+    _, hits_fuzzy = variants[(True, False)]
+    _, hits_both = variants[(True, True)]
 
-    baseline = _winner_path(wiki_none + raw_none)
-    alias_only = _winner_path(wiki_alias + raw_alias)
-    fuzzy_only = _winner_path(wiki_fuzzy + raw_fuzzy)
-    combined = _winner_path(wiki_both + raw_both)
+    baseline = _winner_path(hits_none)
+    alias_only = _winner_path(hits_alias)
+    fuzzy_only = _winner_path(hits_fuzzy)
+    combined = _winner_path(hits_both)
 
     alias_changed = alias_only != baseline
     fuzzy_changed = fuzzy_only != baseline
@@ -134,15 +131,20 @@ def _normalize_citation_marker(marker: str) -> list[dict[str, str]]:
     normalized: list[dict[str, str]] = []
     for part in parts:
         chunks = part.split()
-        if not chunks:
+        if len(chunks) < 2:
             continue
         source_id = chunks[0]
+        if not validate_source_id(source_id):
+            continue
         evidence_ref = " ".join(chunks[1:]).strip()
+        if not evidence_ref:
+            continue
         normalized.append({"source_id": source_id, "evidence_ref": evidence_ref})
     return normalized
 
 
-def _hit_payload(path_str: str) -> dict[str, Any]:
+def _hit_payload(hit: SearchHit) -> dict[str, Any]:
+    path_str = str(hit.path.relative_to(ROOT))
     abs_path = ROOT / path_str
     content = abs_path.read_text(encoding="utf-8")
     snippet = next((line.strip() for line in content.splitlines() if line.strip()), "")
@@ -155,6 +157,8 @@ def _hit_payload(path_str: str) -> dict[str, Any]:
         "snippet": snippet[:240],
         "source_markers": source_markers,
         "citations": citations,
+        "score": round(float(hit.score), 6),
+        "explain_payload": hit.explain_payload(),
     }
 
 
@@ -162,6 +166,95 @@ def _change_type_from_path(path_str: str) -> str:
     if "/source-notes/" in path_str:
         return "new_note_link"
     return "update_section"
+
+
+def _load_claims(review_dir: Path) -> list[dict[str, Any]]:
+    claim_ledger = review_dir / "claim-ledger.jsonl"
+    if not claim_ledger.exists():
+        return []
+    claims: list[dict[str, Any]] = []
+    for line in claim_ledger.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            claims.append(payload)
+    return claims
+
+
+def _target_wiki_path(review_id: str, proposed_path: str) -> str:
+    target = proposed_path.split(f"staging/reviews/{review_id}/proposed/", 1)[1]
+    if not target.startswith("wiki/"):
+        return target
+    return f"/{target}"
+
+
+def _linked_claims(claims: list[dict[str, Any]], target_wiki_path: str) -> list[dict[str, Any]]:
+    linked: list[dict[str, Any]] = []
+    target_no_slash = target_wiki_path.lstrip("/")
+    for claim in claims:
+        touches = claim.get("touches", [])
+        if not isinstance(touches, list):
+            continue
+        normalized_touches = {str(item).lstrip("/") for item in touches if isinstance(item, str)}
+        if target_no_slash in normalized_touches:
+            linked.append(claim)
+    return sorted(
+        linked,
+        key=lambda claim: (
+            -CLAIM_CONFIDENCE_WEIGHT.get(str(claim.get("confidence", "medium")), 2),
+            str(claim.get("claim_id", "")),
+        ),
+    )
+
+
+def _dedupe_citations(citations: list[dict[str, str]]) -> list[dict[str, str]]:
+    seen: set[tuple[str, str]] = set()
+    deduped: list[dict[str, str]] = []
+    for citation in citations:
+        source_id = str(citation.get("source_id", ""))
+        evidence_ref = str(citation.get("evidence_ref", ""))
+        if not source_id or not evidence_ref:
+            continue
+        key = (source_id, evidence_ref)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append({"source_id": source_id, "evidence_ref": evidence_ref})
+    return sorted(deduped, key=lambda item: (item["source_id"], item["evidence_ref"]))
+
+
+def _build_rationale(
+    *,
+    linked_claims: list[dict[str, Any]],
+    winner: dict[str, Any],
+    normalized_citations: list[dict[str, str]],
+    target_wiki_path: str,
+) -> tuple[str, str]:
+    claim_prefix = "No linked claims found in claim-ledger.jsonl"
+    if linked_claims:
+        claim_refs = [f"{claim.get('claim_id', 'CLM-?')}: {str(claim.get('claim', '')).strip()}" for claim in linked_claims[:2]]
+        claim_prefix = "Linked claims " + " | ".join(claim_refs)
+
+    winner_path = winner.get("path", "")
+    winner_score = winner.get("score", 0.0)
+    winner_part = f"top retrieval hit {winner_path} (score={winner_score})" if winner_path else "no accepted retrieval hit"
+
+    citation_part = "no citation spans found"
+    if normalized_citations:
+        spans = [f"{item['source_id']} {item['evidence_ref']}" for item in normalized_citations[:2]]
+        citation_part = "citation spans " + "; ".join(spans)
+
+    why = f"{claim_prefix}; target {target_wiki_path}; {winner_part}; {citation_part}."
+    risk = "Suggestion remains staging-only and needs reviewer approval."
+    if not linked_claims:
+        risk = f"{risk} Claim-to-target linkage was not found in claim-ledger for {target_wiki_path}."
+    if not normalized_citations:
+        risk = f"{risk} Retrieved evidence lacks valid [Sources: ...] markers."
+    return why, risk
 
 
 def generate_retrieval_assist(review_id: str, overwrite: bool = False) -> Path:
@@ -194,6 +287,7 @@ def generate_retrieval_assist(review_id: str, overwrite: bool = False) -> Path:
     evidence_paths: list[str] = []
     proposal_paths: list[str] = []
     generated_at = utc_now_iso8601()
+    claims = _load_claims(review_dir)
 
     idx = 1
     for proposed_path in proposed_paths:
@@ -207,19 +301,33 @@ def generate_retrieval_assist(review_id: str, overwrite: bool = False) -> Path:
         content = abs_path.read_text(encoding="utf-8")
         question = _extract_intent(content, abs_path.stem)
         search_variants = _collect_search_variants(question)
-        consulted_layers, wiki_hits, raw_hits = search_variants[(False, True)]
-        winner_paths = wiki_hits + raw_hits
-        supporting_paths = winner_paths[:3]
-        winner = _hit_payload(supporting_paths[0]) if supporting_paths else {"path": "", "snippet": "", "source_markers": [], "citations": []}
-        supporting_hits = [_hit_payload(path) for path in supporting_paths]
-        normalized_citations = []
+        consulted_layers, search_hits = search_variants[(False, True)]
+        supporting_hits = [_hit_payload(hit) for hit in search_hits]
+        winner = deepcopy(supporting_hits[0]) if supporting_hits else {
+            "path": "",
+            "snippet": "",
+            "source_markers": [],
+            "citations": [],
+            "score": 0.0,
+            "explain_payload": {},
+        }
+        all_citations: list[dict[str, str]] = []
         for hit in supporting_hits:
-            normalized_citations.extend(hit["citations"])
-        source_ids = sorted({item["source_id"] for item in normalized_citations if item.get("source_id")})
+            all_citations.extend(hit["citations"])
+        normalized_citations = _dedupe_citations(all_citations)
+        source_ids = sorted({item["source_id"] for item in normalized_citations})
 
         evidence_bundle_id = f"EV-{idx:04d}"
         proposal_id = f"PRP-{idx:04d}"
         intended_wiki_path = proposed_path.split(f"staging/reviews/{review_id}/proposed/", 1)[1]
+        target_wiki_path = _target_wiki_path(review_id, proposed_path)
+        linked_claims = _linked_claims(claims, target_wiki_path)
+        why_suggested, risk_or_uncertainty = _build_rationale(
+            linked_claims=linked_claims,
+            winner=winner,
+            normalized_citations=normalized_citations,
+            target_wiki_path=target_wiki_path,
+        )
         change_type = _change_type_from_path(proposed_path)
         if change_type not in ALLOWED_CHANGE_TYPES:
             change_type = "conflict_flag"
@@ -239,20 +347,11 @@ def generate_retrieval_assist(review_id: str, overwrite: bool = False) -> Path:
                 "source_ids": source_ids,
                 "citation_format_version": "v1",
             },
-            "winner": {
-                **winner,
-                "score": None,
-                "explain_payload": None,
-            },
-            "supporting_hits": [
-                {
-                    **hit,
-                    "score": None,
-                }
-                for hit in supporting_hits
-            ],
-            "why_suggested": "Retrieved evidence overlaps proposed update target and supports reviewer inspection.",
-            "risk_or_uncertainty": "Suggestion is staging-only and requires reviewer approval before promotion.",
+            "winner": winner,
+            "supporting_hits": supporting_hits,
+            "rationale_claim_ids": [str(claim.get("claim_id", "")) for claim in linked_claims[:3]],
+            "why_suggested": why_suggested,
+            "risk_or_uncertainty": risk_or_uncertainty,
             "generated_at": generated_at,
         }
         evidence_path = evidence_dir / f"{evidence_bundle_id}.yaml"
@@ -264,7 +363,7 @@ def generate_retrieval_assist(review_id: str, overwrite: bool = False) -> Path:
             "target_proposed_path": proposed_path,
             "intended_wiki_path": intended_wiki_path,
             "change_type": change_type,
-            "summary": f"Retrieval-backed review suggestion for {Path(intended_wiki_path).name}",
+            "summary": why_suggested,
             "evidence_bundle_id": evidence_bundle_id,
             "review_status": "proposed",
         }

@@ -10,26 +10,92 @@ grounding:
   normalized_citations: []
   source_ids: []
   citation_format_version: v1
-winner:
+winner: &id001
   path: wiki/source-notes/src-2026-0001-meta-ads-course-module-1.md
   snippet: '---'
   source_markers: []
   citations: []
-  score: null
-  explain_payload: null
+  score: 19.258483
+  explain_payload:
+    path: wiki/source-notes/src-2026-0001-meta-ads-course-module-1.md
+    accepted: true
+    final_score: 19.258483
+    bm25_total: 21.008483
+    bm25_fields:
+      title: 11.464262
+      headings: 6.78497
+      filename: 0.0
+      frontmatter: 0.0
+      body: 2.759252
+    heuristic_fields:
+      phrase_boost: 0.0
+      page_type_boost: -0.4
+      confidence_boost: 0.0
+      citation_boost: 0.0
+      role_adjustment: -0.25
+      canonical_precedence_boost: -1.1
+      evidence_alignment_boost: 0.0
+      fuzzy_match_boost: 0.0
+      tactic_platform_intent_boost: 0.0
+      index_page_penalty: 0.0
+    acceptance_reasons:
+    - score_meets_threshold
+    - lexical_overlap_present
+    - retrieval_role_auxiliary
+    rejection_reasons: []
+    metadata:
+      accepted: true
+      corpus_type: wiki
+      page_type: source-note
+      confidence: medium
+      citations_present: false
+      retrieval_role: auxiliary
 supporting_hits:
-- path: wiki/source-notes/src-2026-0001-meta-ads-course-module-1.md
-  snippet: '---'
-  source_markers: []
-  citations: []
-  score: null
+- *id001
 - path: wiki/overview.md
   snippet: '---'
   source_markers: []
   citations: []
-  score: null
-why_suggested: Retrieved evidence overlaps proposed update target and supports reviewer
-  inspection.
-risk_or_uncertainty: Suggestion is staging-only and requires reviewer approval before
-  promotion.
-generated_at: '2026-04-12T16:12:25Z'
+  score: 1.15
+  explain_payload:
+    path: wiki/overview.md
+    accepted: true
+    final_score: 1.15
+    bm25_total: 0.0
+    bm25_fields:
+      title: 0.0
+      headings: 0.0
+      filename: 0.0
+      frontmatter: 0.0
+      body: 0.0
+    heuristic_fields:
+      phrase_boost: 0.0
+      page_type_boost: 0.0
+      confidence_boost: 0.3
+      citation_boost: 0.0
+      role_adjustment: 0.4
+      canonical_precedence_boost: 0.45
+      evidence_alignment_boost: 0.0
+      fuzzy_match_boost: 0.0
+      tactic_platform_intent_boost: 0.0
+      index_page_penalty: 0.0
+    acceptance_reasons:
+    - score_meets_threshold
+    - lexical_overlap_present
+    - retrieval_role_answerable
+    rejection_reasons: []
+    metadata:
+      accepted: true
+      corpus_type: wiki
+      page_type: overview
+      confidence: high
+      citations_present: false
+      retrieval_role: answerable
+rationale_claim_ids: []
+why_suggested: No linked claims found in claim-ledger.jsonl; target /wiki/source-notes/phase-4-retrieval-assist-proof-source.md;
+  top retrieval hit wiki/source-notes/src-2026-0001-meta-ads-course-module-1.md (score=19.258483);
+  no citation spans found.
+risk_or_uncertainty: 'Suggestion remains staging-only and needs reviewer approval.
+  Claim-to-target linkage was not found in claim-ledger for /wiki/source-notes/phase-4-retrieval-assist-proof-source.md.
+  Retrieved evidence lacks valid [Sources: ...] markers.'
+generated_at: '2026-04-12T17:18:25Z'

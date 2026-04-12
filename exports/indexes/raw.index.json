@@ -1,11 +1,11 @@
 {
   "index_version": 2,
   "corpus_type": "raw",
-  "indexed_at": "2026-04-12T16:11:53Z",
+  "indexed_at": "2026-04-12T17:49:47Z",
   "documents": [
     {
       "path": "raw/sources/SRC-2026-0001-meta-ads-course/chunks/0001.md",
-      "mtime": 1775953489.2891984,
+      "mtime": 1776012546.7441049,
       "content_hash": "cc8e1f60c8083313acc5981a1be30823b5c7b321f318ec3c68bfeab4652d632f",
       "filename": "0001.md",
       "title": "0001",
@@ -109,7 +109,7 @@
     },
     {
       "path": "raw/sources/SRC-2099-9010-phase4-proof/chunks/0001.md",
-      "mtime": 1776010282.4628885,
+      "mtime": 1776015476.545567,
       "content_hash": "4a225b15cdb991c93214a3081218676af52935a1646b0953d6b6fc7dfaab38fc",
       "filename": "0001.md",
       "title": "0001",
@@ -137,7 +137,7 @@
     },
     {
       "path": "raw/sources/SRC-2099-9010-phase4-proof/transcript/lesson-01.md",
-      "mtime": 1776010278.0835454,
+      "mtime": 1776015476.545608,
       "content_hash": "4a225b15cdb991c93214a3081218676af52935a1646b0953d6b6fc7dfaab38fc",
       "filename": "lesson-01.md",
       "title": "lesson-01",

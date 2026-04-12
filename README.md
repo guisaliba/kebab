@@ -112,7 +112,10 @@ Contract notes:
 
 - `target_proposed_path` always points to `staging/reviews/REV-.../proposed/wiki/...`
 - `intended_wiki_path` is informational and points to `wiki/...`
-- evidence bundles carry structured citation grounding (`normalized_citations`, source markers, per-hit citations)
+- evidence bundles carry structured citation grounding (`normalized_citations`, `source_ids`, source markers, per-hit citations)
+- winner and supporting hits include concrete `score` and `explain_payload` from retrieval scoring
+- rationale (`why_suggested`) is generated from existing `claim-ledger.jsonl` links plus citation spans when present
+- malformed/partial citation marker segments are ignored conservatively (no synthetic source/evidence fields)
 - retrieval-assist never writes directly to `wiki/`
 
 ### Promote

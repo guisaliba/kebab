@@ -8,19 +8,14 @@ retrieval_context:
   alias_influence_class: none
 grounding:
   normalized_citations:
-  - &id001
-    source_id: SRC-2026-0001
+  - source_id: SRC-2026-0001
     evidence_ref: §lesson-01 00:00:00-00:02:10
-  - &id002
-    source_id: SRC-2026-0001
-    evidence_ref: §lesson-01 00:02:11-00:05:30
-  - &id003
-    source_id: SRC-2026-0001
+  - source_id: SRC-2026-0001
     evidence_ref: §lesson-01 00:02:11-00:05:30
   source_ids:
   - SRC-2026-0001
   citation_format_version: v1
-winner:
+winner: &id001
   path: wiki/platforms/meta-ads.md
   snippet: '---'
   source_markers:
@@ -34,22 +29,53 @@ winner:
     evidence_ref: §lesson-01 00:02:11-00:05:30
   - source_id: SRC-2026-0001
     evidence_ref: §lesson-01 00:02:11-00:05:30
-  score: null
-  explain_payload: null
+  score: 26.588358
+  explain_payload:
+    path: wiki/platforms/meta-ads.md
+    accepted: true
+    final_score: 26.588358
+    bm25_total: 24.538358
+    bm25_fields:
+      title: 14.304033
+      headings: 8.485113
+      filename: 0.0
+      frontmatter: 0.0
+      body: 1.749212
+    heuristic_fields:
+      phrase_boost: 0.0
+      page_type_boost: 1.0
+      confidence_boost: 0.0
+      citation_boost: 0.2
+      role_adjustment: 0.4
+      canonical_precedence_boost: 0.45
+      evidence_alignment_boost: 0.0
+      fuzzy_match_boost: 0.0
+      tactic_platform_intent_boost: 0.0
+      index_page_penalty: 0.0
+    acceptance_reasons:
+    - score_meets_threshold
+    - lexical_overlap_present
+    - retrieval_role_answerable
+    rejection_reasons: []
+    metadata:
+      accepted: true
+      corpus_type: wiki
+      page_type: platform
+      confidence: medium
+      citations_present: true
+      retrieval_role: answerable
 supporting_hits:
-- path: wiki/platforms/meta-ads.md
-  snippet: '---'
-  source_markers:
-  - '[Sources: SRC-2026-0001 §lesson-01 00:00:00-00:02:10]'
-  - '[Sources: SRC-2026-0001 §lesson-01 00:02:11-00:05:30]'
-  - '[Sources: SRC-2026-0001 §lesson-01 00:02:11-00:05:30]'
-  citations:
-  - *id001
-  - *id002
-  - *id003
-  score: null
-why_suggested: Retrieved evidence overlaps proposed update target and supports reviewer
-  inspection.
-risk_or_uncertainty: Suggestion is staging-only and requires reviewer approval before
-  promotion.
-generated_at: '2026-04-12T16:12:25Z'
+- *id001
+rationale_claim_ids:
+- CLM-0001
+- CLM-0002
+- CLM-0003
+why_suggested: 'Linked claims CLM-0001: Quando o ROAS cai e o CPM sobe ao mesmo tempo,
+  o primeiro passo de diagnostico e separar problema de criativo de problema de audiencia.
+  | CLM-0002: Broad targeting pode funcionar melhor com sinais fortes de conversao,
+  mas nao deve ser tratado como regra universal sem validar contexto e objetivo da
+  campanha.; target /wiki/platforms/meta-ads.md; top retrieval hit wiki/platforms/meta-ads.md
+  (score=26.588358); citation spans SRC-2026-0001 §lesson-01 00:00:00-00:02:10; SRC-2026-0001
+  §lesson-01 00:02:11-00:05:30.'
+risk_or_uncertainty: Suggestion remains staging-only and needs reviewer approval.
+generated_at: '2026-04-12T17:18:25Z'
