@@ -114,7 +114,11 @@ Contract notes:
 - `intended_wiki_path` is informational and points to `wiki/...`
 - evidence bundles carry structured citation grounding (`normalized_citations`, `source_ids`, source markers, per-hit citations)
 - winner and supporting hits include concrete `score` and `explain_payload` from retrieval scoring
+- supporting hits explicitly exclude winner and may be fewer than max if meaningful alternatives are unavailable
+- supporting-hit distinctness preference is: different `path` -> different `page_type` -> different source/citation context
 - rationale (`why_suggested`) is generated from existing `claim-ledger.jsonl` links plus citation spans when present
+- weak-case rationale stays strictly grounded in linked claims, retrieved hits, and present citation spans; no invented nearest-context explanations
+- evidence includes `quality_flags` (`weak_linked_claim_coverage`, `low_citation_coverage`, `single_supporting_context`, `duplicated_evidence_unavoidable`) for reviewer triage
 - malformed/partial citation marker segments are ignored conservatively (no synthetic source/evidence fields)
 - retrieval-assist never writes directly to `wiki/`
 

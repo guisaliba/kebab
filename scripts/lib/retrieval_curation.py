@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import shutil
-from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +25,12 @@ ALIAS_ATTRIBUTION_CLASSES = {
 }
 RETRIEVAL_POLICY_VERSION = "phase4-v1"
 CLAIM_CONFIDENCE_WEIGHT = {"high": 3, "medium": 2, "low": 1}
+ALLOWED_QUALITY_FLAGS = {
+    "weak_linked_claim_coverage",
+    "low_citation_coverage",
+    "single_supporting_context",
+    "duplicated_evidence_unavoidable",
+}
 
 
 def _winner_path(hits: list[SearchHit]) -> str | None:
@@ -143,20 +148,33 @@ def _normalize_citation_marker(marker: str) -> list[dict[str, str]]:
     return normalized
 
 
+def _dedupe_source_markers(markers: list[str]) -> list[str]:
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for marker in markers:
+        normalized = marker.strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        deduped.append(normalized)
+    return deduped
+
+
 def _hit_payload(hit: SearchHit) -> dict[str, Any]:
     path_str = str(hit.path.relative_to(ROOT))
     abs_path = ROOT / path_str
     content = abs_path.read_text(encoding="utf-8")
     snippet = next((line.strip() for line in content.splitlines() if line.strip()), "")
-    source_markers = collect_source_markers(content)
-    citations = []
+    source_markers = _dedupe_source_markers(collect_source_markers(content))
+    citations: list[dict[str, str]] = []
     for marker in source_markers:
         citations.extend(_normalize_citation_marker(marker))
+    deduped_citations = _dedupe_citations(citations)
     return {
         "path": path_str,
         "snippet": snippet[:240],
         "source_markers": source_markers,
-        "citations": citations,
+        "citations": deduped_citations,
         "score": round(float(hit.score), 6),
         "explain_payload": hit.explain_payload(),
     }
@@ -225,6 +243,97 @@ def _dedupe_citations(citations: list[dict[str, str]]) -> list[dict[str, str]]:
         seen.add(key)
         deduped.append({"source_id": source_id, "evidence_ref": evidence_ref})
     return sorted(deduped, key=lambda item: (item["source_id"], item["evidence_ref"]))
+
+
+def _citation_context_key(hit_payload: dict[str, Any]) -> tuple[tuple[str, str], ...]:
+    citations = hit_payload.get("citations", [])
+    if not isinstance(citations, list):
+        return tuple()
+    pairs: list[tuple[str, str]] = []
+    for citation in citations:
+        if not isinstance(citation, dict):
+            continue
+        source_id = str(citation.get("source_id", ""))
+        evidence_ref = str(citation.get("evidence_ref", ""))
+        if source_id and evidence_ref:
+            pairs.append((source_id, evidence_ref))
+    return tuple(sorted(set(pairs)))
+
+
+def _page_type(hit_payload: dict[str, Any]) -> str:
+    explain_payload = hit_payload.get("explain_payload", {})
+    if not isinstance(explain_payload, dict):
+        return ""
+    metadata = explain_payload.get("metadata", {})
+    if not isinstance(metadata, dict):
+        return ""
+    page_type = metadata.get("page_type", "")
+    return str(page_type)
+
+
+def _select_supporting_hits(
+    *,
+    search_hits: list[SearchHit],
+    winner: dict[str, Any],
+    max_supporting: int = 2,
+) -> tuple[list[dict[str, Any]], bool]:
+    if max_supporting <= 0 or len(search_hits) <= 1:
+        return [], False
+
+    winner_path = str(winner.get("path", ""))
+    winner_page_type = _page_type(winner)
+    winner_context = _citation_context_key(winner)
+
+    candidate_payloads: list[dict[str, Any]] = []
+    for hit in search_hits[1:]:
+        payload = _hit_payload(hit)
+        if str(payload.get("path", "")) == winner_path:
+            continue
+        candidate_payloads.append(payload)
+
+    if not candidate_payloads:
+        return [], False
+
+    def _priority(payload: dict[str, Any]) -> tuple[int, int, int, float, str]:
+        path_penalty = 0 if str(payload.get("path", "")) != winner_path else 1
+        page_type_penalty = 0 if _page_type(payload) and _page_type(payload) != winner_page_type else 1
+        context_key = _citation_context_key(payload)
+        context_penalty = 0 if context_key and context_key != winner_context else 1
+        return (
+            path_penalty,
+            page_type_penalty,
+            context_penalty,
+            -float(payload.get("score", 0.0)),
+            str(payload.get("path", "")),
+        )
+
+    candidate_payloads = sorted(candidate_payloads, key=_priority)
+
+    selected: list[dict[str, Any]] = []
+    selected_paths: set[str] = set()
+    selected_contexts: set[tuple[tuple[str, str], ...]] = {winner_context} if winner_context else set()
+
+    for payload in candidate_payloads:
+        if len(selected) >= max_supporting:
+            break
+        path_value = str(payload.get("path", ""))
+        if path_value in selected_paths:
+            continue
+        context_key = _citation_context_key(payload)
+        if context_key and context_key in selected_contexts:
+            continue
+        selected.append(payload)
+        selected_paths.add(path_value)
+        if context_key:
+            selected_contexts.add(context_key)
+
+    duplicated_unavoidable = False
+    if not selected and candidate_payloads:
+        fallback = candidate_payloads[0]
+        selected.append(fallback)
+        duplicated_unavoidable = _citation_context_key(fallback) == winner_context and bool(winner_context)
+
+    return selected, duplicated_unavoidable
 
 
 def _build_rationale(
@@ -302,8 +411,7 @@ def generate_retrieval_assist(review_id: str, overwrite: bool = False) -> Path:
         question = _extract_intent(content, abs_path.stem)
         search_variants = _collect_search_variants(question)
         consulted_layers, search_hits = search_variants[(False, True)]
-        supporting_hits = [_hit_payload(hit) for hit in search_hits]
-        winner = deepcopy(supporting_hits[0]) if supporting_hits else {
+        winner = _hit_payload(search_hits[0]) if search_hits else {
             "path": "",
             "snippet": "",
             "source_markers": [],
@@ -311,8 +419,13 @@ def generate_retrieval_assist(review_id: str, overwrite: bool = False) -> Path:
             "score": 0.0,
             "explain_payload": {},
         }
+        supporting_hits, duplicated_unavoidable = _select_supporting_hits(
+            search_hits=search_hits,
+            winner=winner,
+            max_supporting=2,
+        )
         all_citations: list[dict[str, str]] = []
-        for hit in supporting_hits:
+        for hit in [winner, *supporting_hits]:
             all_citations.extend(hit["citations"])
         normalized_citations = _dedupe_citations(all_citations)
         source_ids = sorted({item["source_id"] for item in normalized_citations})
@@ -328,6 +441,17 @@ def generate_retrieval_assist(review_id: str, overwrite: bool = False) -> Path:
             normalized_citations=normalized_citations,
             target_wiki_path=target_wiki_path,
         )
+        quality_flags: list[str] = []
+        if not linked_claims:
+            quality_flags.append("weak_linked_claim_coverage")
+        if not normalized_citations:
+            quality_flags.append("low_citation_coverage")
+        if len(supporting_hits) <= 1:
+            quality_flags.append("single_supporting_context")
+        if duplicated_unavoidable:
+            quality_flags.append("duplicated_evidence_unavoidable")
+        quality_flags = [flag for flag in quality_flags if flag in ALLOWED_QUALITY_FLAGS]
+
         change_type = _change_type_from_path(proposed_path)
         if change_type not in ALLOWED_CHANGE_TYPES:
             change_type = "conflict_flag"
@@ -349,6 +473,15 @@ def generate_retrieval_assist(review_id: str, overwrite: bool = False) -> Path:
             },
             "winner": winner,
             "supporting_hits": supporting_hits,
+            "selection_policy": {
+                "max_supporting_hits": 2,
+                "distinctness_rules": [
+                    "different_path",
+                    "different_page_type",
+                    "different_source_or_citation_context",
+                ],
+            },
+            "quality_flags": quality_flags,
             "rationale_claim_ids": [str(claim.get("claim_id", "")) for claim in linked_claims[:3]],
             "why_suggested": why_suggested,
             "risk_or_uncertainty": risk_or_uncertainty,

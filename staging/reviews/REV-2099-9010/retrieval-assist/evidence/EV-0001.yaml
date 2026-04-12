@@ -10,7 +10,7 @@ grounding:
   normalized_citations: []
   source_ids: []
   citation_format_version: v1
-winner: &id001
+winner:
   path: wiki/source-notes/src-2026-0001-meta-ads-course-module-1.md
   snippet: '---'
   source_markers: []
@@ -51,7 +51,6 @@ winner: &id001
       citations_present: false
       retrieval_role: auxiliary
 supporting_hits:
-- *id001
 - path: wiki/overview.md
   snippet: '---'
   source_markers: []
@@ -91,6 +90,16 @@ supporting_hits:
       confidence: high
       citations_present: false
       retrieval_role: answerable
+selection_policy:
+  max_supporting_hits: 2
+  distinctness_rules:
+  - different_path
+  - different_page_type
+  - different_source_or_citation_context
+quality_flags:
+- weak_linked_claim_coverage
+- low_citation_coverage
+- single_supporting_context
 rationale_claim_ids: []
 why_suggested: No linked claims found in claim-ledger.jsonl; target /wiki/source-notes/phase-4-retrieval-assist-proof-source.md;
   top retrieval hit wiki/source-notes/src-2026-0001-meta-ads-course-module-1.md (score=19.258483);
@@ -98,4 +107,4 @@ why_suggested: No linked claims found in claim-ledger.jsonl; target /wiki/source
 risk_or_uncertainty: 'Suggestion remains staging-only and needs reviewer approval.
   Claim-to-target linkage was not found in claim-ledger for /wiki/source-notes/phase-4-retrieval-assist-proof-source.md.
   Retrieved evidence lacks valid [Sources: ...] markers.'
-generated_at: '2026-04-12T17:18:25Z'
+generated_at: '2026-04-12T19:38:34Z'

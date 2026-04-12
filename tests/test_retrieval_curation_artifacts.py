@@ -99,10 +99,13 @@ def test_curate_generates_retrieval_assist_artifacts_and_never_writes_wiki() -> 
         assert isinstance(evidence["winner"]["score"], float)
         assert isinstance(evidence["winner"]["explain_payload"], dict)
         assert isinstance(evidence["supporting_hits"], list)
-        assert evidence["supporting_hits"]
-        assert isinstance(evidence["supporting_hits"][0]["score"], float)
-        assert isinstance(evidence["supporting_hits"][0]["explain_payload"], dict)
+        for supporting_hit in evidence["supporting_hits"]:
+            assert supporting_hit["path"] != evidence["winner"]["path"]
+            assert isinstance(supporting_hit["score"], float)
+            assert isinstance(supporting_hit["explain_payload"], dict)
         assert "CLM-0001" in evidence["why_suggested"]
+        assert isinstance(evidence["quality_flags"], list)
+        assert isinstance(evidence["selection_policy"], dict)
         assert evidence["retrieval_context"]["alias_influence_class"] in {
             "alias_only",
             "fuzzy_only",
@@ -220,6 +223,104 @@ def test_review_validator_enforces_retrieval_assist_contract_fields() -> None:
         assert any("missing required field summary" in error for error in errors)
         assert any("missing required field review_status" in error for error in errors)
         assert any("evidence_bundle_paths do not match proposals.jsonl evidence bundles" in error for error in errors)
+    finally:
+        if review_dir.exists():
+            shutil.rmtree(review_dir)
+
+
+def test_supporting_hits_prioritize_distinct_paths_and_exclude_winner() -> None:
+    review_id = "REV-2099-9006"
+    review_dir, _ = _build_review_fixture(review_id)
+    try:
+        run = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "curate" / "main.py"), "--review-id", review_id],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert run.returncode == 0, run.stderr + run.stdout
+
+        proposals = [
+            json.loads(line)
+            for line in (review_dir / "retrieval-assist" / "proposals.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        update_proposal = next(item for item in proposals if item["change_type"] == "update_section")
+        evidence_path = review_dir / "retrieval-assist" / "evidence" / f"{update_proposal['evidence_bundle_id']}.yaml"
+        evidence = yaml.safe_load(evidence_path.read_text(encoding="utf-8"))
+
+        winner_path = evidence["winner"]["path"]
+        supporting_paths = [hit["path"] for hit in evidence["supporting_hits"]]
+        assert winner_path not in supporting_paths
+        assert len(supporting_paths) == len(set(supporting_paths))
+        assert evidence["selection_policy"]["distinctness_rules"] == [
+            "different_path",
+            "different_page_type",
+            "different_source_or_citation_context",
+        ]
+    finally:
+        if review_dir.exists():
+            shutil.rmtree(review_dir)
+
+
+def test_weak_case_quality_flags_and_strict_grounding() -> None:
+    review_id = "REV-2099-9007"
+    review_dir, _ = _build_review_fixture(review_id)
+    try:
+        source_note_rel = Path(
+            f"staging/reviews/{review_id}/proposed/wiki/source-notes/weak-source-note.md"
+        )
+        source_note_path = ROOT / source_note_rel
+        source_note_path.parent.mkdir(parents=True, exist_ok=True)
+        source_note_path.write_text(
+            (
+                "---\n"
+                "id: WIKI-SOURCE_NOTE-0999\n"
+                "title: Weak Source Note\n"
+                "type: source-note\n"
+                "status: active\n"
+                "language: pt-BR\n"
+                "created_at: 2026-04-09T00:00:00Z\n"
+                "updated_at: 2026-04-09T00:00:00Z\n"
+                "review_status: proposed\n"
+                "confidence: medium\n"
+                "sources:\n"
+                "- SRC-2099-9003\n"
+                "topics:\n"
+                "- meta-ads\n"
+                "---\n\n"
+                "# Weak Source Note\n"
+                "Sem ligação direta de touches para este caminho.\n"
+            ),
+            encoding="utf-8",
+        )
+        manifest_path = review_dir / "manifest.yaml"
+        manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+        manifest["proposed_paths"].append(str(source_note_rel))
+        manifest_path.write_text(yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+        run = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "curate" / "main.py"), "--review-id", review_id],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert run.returncode == 0, run.stderr + run.stdout
+
+        proposals = [
+            json.loads(line)
+            for line in (review_dir / "retrieval-assist" / "proposals.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        weak_proposal = next(item for item in proposals if item["change_type"] == "new_note_link")
+        evidence_path = review_dir / "retrieval-assist" / "evidence" / f"{weak_proposal['evidence_bundle_id']}.yaml"
+        evidence = yaml.safe_load(evidence_path.read_text(encoding="utf-8"))
+
+        assert "weak_linked_claim_coverage" in evidence["quality_flags"]
+        assert "No linked claims found in claim-ledger.jsonl" in evidence["why_suggested"]
+        assert evidence["rationale_claim_ids"] == []
     finally:
         if review_dir.exists():
             shutil.rmtree(review_dir)
