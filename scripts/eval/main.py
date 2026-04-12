@@ -21,6 +21,7 @@ from scripts.lib.reviewer_outcomes import (
     NORMALIZED_REVIEW_OUTCOMES,
     REVIEW_OUTCOME_NORMALIZATION_MAP,
     classify_dataset_provenance,
+    normalize_dataset_provenance,
     normalize_provenance,
     normalize_reviewer_outcome,
 )
@@ -228,7 +229,7 @@ def _build_calibration_report(reviewer_outcomes: dict[str, Any]) -> dict[str, An
             continue
         provenance = normalize_provenance(outcome.get("provenance"))
         if provenance is None:
-            metadata_origin = normalize_provenance(reviewer_outcomes.get("metadata", {}).get("dataset_origin"))
+            metadata_origin = normalize_dataset_provenance(reviewer_outcomes.get("metadata", {}).get("dataset_origin"))
             provenance = metadata_origin or "real"
         provenance_counts[provenance] = provenance_counts.get(provenance, 0) + 1
         class_counts[normalized] += 1
@@ -268,9 +269,13 @@ def _build_calibration_report(reviewer_outcomes: dict[str, Any]) -> dict[str, An
     }
     gate["material_mismatch_triggered"] = any(gate["triggered_checks"].values())
 
-    dataset_provenance = classify_dataset_provenance(
-        [key for key, count in provenance_counts.items() for _ in range(count)]
-    )
+    present_provenances = [key for key, count in provenance_counts.items() if count > 0]
+    if len(present_provenances) > 1:
+        dataset_provenance = "mixed"
+    elif len(present_provenances) == 1:
+        dataset_provenance = present_provenances[0]
+    else:
+        dataset_provenance = "unknown"
 
     real_entries = [entry for entry in entries if entry.get("provenance") == "real"]
     real_outcome_counts = {

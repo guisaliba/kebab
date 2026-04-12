@@ -1,11 +1,11 @@
 {
   "index_version": 2,
   "corpus_type": "raw",
-  "indexed_at": "2026-04-12T21:34:36Z",
+  "indexed_at": "2026-04-12T22:11:18Z",
   "documents": [
     {
       "path": "raw/sources/SRC-2026-0001-meta-ads-course/chunks/0001.md",
-      "mtime": 1776028348.488999,
+      "mtime": 1776031708.7831087,
       "content_hash": "cc8e1f60c8083313acc5981a1be30823b5c7b321f318ec3c68bfeab4652d632f",
       "filename": "0001.md",
       "title": "0001",
@@ -33,7 +33,7 @@
     },
     {
       "path": "raw/sources/SRC-2026-0001-meta-ads-course/chunks/0002.md",
-      "mtime": 1775774679.9354827,
+      "mtime": 1776031708.7831748,
       "content_hash": "61451ce4fe71ddf5d3d073584ab199d19500410f3e9930f937292bdf17aa126c",
       "filename": "0002.md",
       "title": "0002",
@@ -58,7 +58,7 @@
     },
     {
       "path": "raw/sources/SRC-2026-0001-meta-ads-course/transcript/glossary-hints.txt",
-      "mtime": 1775773892.0,
+      "mtime": 1776031708.7831748,
       "content_hash": "32417e641f93cb3e42f468aa68174a20ddcfb86bb17c598646496b496722a036",
       "filename": "glossary-hints.txt",
       "title": "glossary-hints",
@@ -81,7 +81,7 @@
     },
     {
       "path": "raw/sources/SRC-2026-0001-meta-ads-course/transcript/lesson-01.md",
-      "mtime": 1775773892.0,
+      "mtime": 1776031708.7833588,
       "content_hash": "cc8e1f60c8083313acc5981a1be30823b5c7b321f318ec3c68bfeab4652d632f",
       "filename": "lesson-01.md",
       "title": "lesson-01",
@@ -109,7 +109,7 @@
     },
     {
       "path": "raw/sources/SRC-2099-9010-phase4-proof/chunks/0001.md",
-      "mtime": 1776022612.3877084,
+      "mtime": 1776031708.7835,
       "content_hash": "4a225b15cdb991c93214a3081218676af52935a1646b0953d6b6fc7dfaab38fc",
       "filename": "0001.md",
       "title": "0001",
@@ -137,7 +137,7 @@
     },
     {
       "path": "raw/sources/SRC-2099-9010-phase4-proof/transcript/lesson-01.md",
-      "mtime": 1776015476.545608,
+      "mtime": 1776031708.7835,
       "content_hash": "4a225b15cdb991c93214a3081218676af52935a1646b0953d6b6fc7dfaab38fc",
       "filename": "lesson-01.md",
       "title": "lesson-01",

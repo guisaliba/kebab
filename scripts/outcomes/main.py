@@ -6,9 +6,9 @@ from typing import Any
 
 import yaml
 
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+_BOOTSTRAP_ROOT = Path(__file__).resolve().parents[2]
+if str(_BOOTSTRAP_ROOT) not in sys.path:
+    sys.path.insert(0, str(_BOOTSTRAP_ROOT))
 
 from scripts.lib.paths import ROOT
 from scripts.lib.reviewer_outcomes import normalize_reviewer_outcome
@@ -89,6 +89,24 @@ def _outcome_key(row: dict[str, Any]) -> tuple[str, str, str]:
     )
 
 
+def _key_exists_in_jsonl(path: Path, key: tuple[str, str, str]) -> bool:
+    """Stream a JSONL file and return True as soon as ``key`` is found (early-exit)."""
+    if not path.exists():
+        return False
+    with path.open("r", encoding="utf-8") as fh:
+        for line_num, raw_line in enumerate(fh, start=1):
+            stripped = raw_line.strip()
+            if not stripped:
+                continue
+            try:
+                row = json.loads(stripped)
+            except json.JSONDecodeError as exc:
+                raise SystemExit(f"{path}:{line_num}: invalid JSONL: {exc}") from exc
+            if _outcome_key(row) == key:
+                return True
+    return False
+
+
 def append_outcome(
     *,
     review_id: str,
@@ -119,10 +137,8 @@ def append_outcome(
         "notes": notes or "",
     }
 
-    existing = _load_jsonl(dataset_path)
-    existing_keys = {_outcome_key(row) for row in existing}
     candidate_key = _outcome_key(new_row)
-    if candidate_key in existing_keys:
+    if _key_exists_in_jsonl(dataset_path, candidate_key):
         raise SystemExit(
             f"duplicate outcome entry rejected (append-only): review_id={review_id}, proposal_id={proposal_id}, evidence_bundle_id={predicted['evidence_bundle_id']}"
         )

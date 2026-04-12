@@ -28,10 +28,21 @@ def normalize_reviewer_outcome(raw_value: Any) -> str | None:
 
 
 def normalize_provenance(raw_value: Any) -> str | None:
+    """Normalize a row-level provenance value; only ``synthetic`` and ``real`` are valid at row level."""
     if not isinstance(raw_value, str):
         return None
     token = raw_value.strip().lower()
     if token in {"synthetic", "real"}:
+        return token
+    return None
+
+
+def normalize_dataset_provenance(raw_value: Any) -> str | None:
+    """Normalize a dataset-level provenance value; ``mixed`` is also valid here."""
+    if not isinstance(raw_value, str):
+        return None
+    token = raw_value.strip().lower()
+    if token in ALLOWED_DATASET_PROVENANCE:
         return token
     return None
 
