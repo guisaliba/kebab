@@ -45,6 +45,25 @@ CAUTIONARY_REASON_CODES = {
 ALLOWED_CONFIDENCE_BANDS = {"high", "medium", "low"}
 ALLOWED_REVIEW_ACTIONS = {"quick-approve", "normal-review", "deep-review"}
 
+# Confidence model constants are centralized here for calibration transparency.
+CONFIDENCE_MODEL_CONSTANTS = {
+    "weights": {
+        "linked_claim_factor": 0.45,
+        "citation_factor": 0.35,
+        "supporting_diversity_factor": 0.20,
+    },
+    "penalties": {
+        "weak_linked_claim_coverage": 0.25,
+        "low_citation_coverage": 0.20,
+        "single_supporting_context": 0.10,
+        "duplicated_evidence_unavoidable": 0.10,
+    },
+    "band_thresholds": {
+        "high_min": 0.75,
+        "medium_min": 0.45,
+    },
+}
+
 
 def _winner_path(hits: list[SearchHit]) -> str | None:
     if not hits:

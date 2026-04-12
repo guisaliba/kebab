@@ -7,7 +7,8 @@ from scripts.lib.paths import ROOT
 
 
 def test_real_source_ingest_generates_claims_and_contradiction_analysis() -> None:
-    review_id = "REV-2099-9010"
+    # Use a non-tracked review id so cleanup never removes committed fixtures.
+    review_id = "REV-2099-9910"
     review_dir = ROOT / "staging" / "reviews" / review_id
     if review_dir.exists():
         shutil.rmtree(review_dir)

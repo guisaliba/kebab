@@ -200,6 +200,12 @@ Index notes:
 python scripts/eval/main.py
 ```
 
+Optional reviewer-outcome calibration dataset:
+
+```bash
+python scripts/eval/main.py --reviewer-outcomes tests/fixtures/reviewer_outcomes/synthetic_outcomes.json
+```
+
 Evaluation notes:
 - golden query dataset: `tests/fixtures/retrieval_golden/queries.json`
 - dataset metadata fields: `dataset_version`, `dataset_scope`, `updated_at` (optional `notes`)
@@ -212,6 +218,17 @@ Evaluation notes:
 - eval diagnostics also include `diagnostic_classification`, `final_correctness_policy_used`, and `fuzzy_expectation_alignment` to separate ranking misses from expectation mismatches
 - typo-sensitive diagnostics include `alias_influence` (`fuzzy_only`, `alias_only`, `fuzzy_plus_alias`) to show attribution
 - eval runner writes only under `exports/evals/` and does not mutate `wiki/`, `raw/`, or `staging/`
+- confidence calibration report includes:
+  - deterministic reviewer-outcome normalization (`approve|approve_with_edits|reject`)
+  - action-alignment metrics (`quick-approve|normal-review|deep-review` vs normalized outcomes)
+  - optimistic/conservative miss rates
+  - band-level reliability (`high|medium|low`) for MVP
+  - explicit material-mismatch tuning gate thresholds:
+    - `action_alignment_rate < 0.75`
+    - `optimistic_miss_rate > 0.20`
+    - `conservative_miss_rate > 0.35`
+- tuning is evaluation-gated: produce pure calibration report first; tune constants only when mismatch gate is triggered
+- synthetic fixture posture is explicit via metadata (`dataset_origin: synthetic`) until enough real reviewer outcomes exist
 
 ### Retrieval Normalization Policy
 

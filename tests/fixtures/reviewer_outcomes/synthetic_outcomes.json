@@ -1,0 +1,83 @@
+{
+  "metadata": {
+    "dataset_version": "v1",
+    "dataset_scope": "phase4d-calibration-mvp",
+    "updated_at": "2026-04-12T00:00:00Z",
+    "dataset_origin": "synthetic",
+    "notes": "Synthetic calibration fixture for method validation. Not production reviewer data."
+  },
+  "outcomes": [
+    {
+      "review_id": "REV-2099-9101",
+      "proposal_id": "PRP-0001",
+      "evidence_bundle_id": "EV-0001",
+      "predicted_confidence_score": 0.88,
+      "predicted_confidence_band": "high",
+      "predicted_review_action": "quick-approve",
+      "actual_reviewer_decision": "approved"
+    },
+    {
+      "review_id": "REV-2099-9101",
+      "proposal_id": "PRP-0002",
+      "evidence_bundle_id": "EV-0002",
+      "predicted_confidence_score": 0.79,
+      "predicted_confidence_band": "high",
+      "predicted_review_action": "quick-approve",
+      "actual_reviewer_decision": "reject"
+    },
+    {
+      "review_id": "REV-2099-9102",
+      "proposal_id": "PRP-0001",
+      "evidence_bundle_id": "EV-0001",
+      "predicted_confidence_score": 0.61,
+      "predicted_confidence_band": "medium",
+      "predicted_review_action": "normal-review",
+      "actual_reviewer_decision": "approve_with_edits"
+    },
+    {
+      "review_id": "REV-2099-9103",
+      "proposal_id": "PRP-0001",
+      "evidence_bundle_id": "EV-0001",
+      "predicted_confidence_score": 0.34,
+      "predicted_confidence_band": "low",
+      "predicted_review_action": "deep-review",
+      "actual_reviewer_decision": "approve"
+    },
+    {
+      "review_id": "REV-2099-9104",
+      "proposal_id": "PRP-0001",
+      "evidence_bundle_id": "EV-0001",
+      "predicted_confidence_score": 0.49,
+      "predicted_confidence_band": "medium",
+      "predicted_review_action": "normal-review",
+      "actual_reviewer_decision": "request_edits"
+    },
+    {
+      "review_id": "REV-2099-9105",
+      "proposal_id": "PRP-0001",
+      "evidence_bundle_id": "EV-0001",
+      "predicted_confidence_score": 0.27,
+      "predicted_confidence_band": "low",
+      "predicted_review_action": "deep-review",
+      "actual_reviewer_decision": "rejected"
+    },
+    {
+      "review_id": "REV-2099-9106",
+      "proposal_id": "PRP-0001",
+      "evidence_bundle_id": "EV-0001",
+      "predicted_confidence_score": 0.59,
+      "predicted_confidence_band": "medium",
+      "predicted_review_action": "normal-review",
+      "actual_reviewer_decision": "APPROVE"
+    },
+    {
+      "review_id": "REV-2099-9107",
+      "proposal_id": "PRP-0001",
+      "evidence_bundle_id": "EV-0001",
+      "predicted_confidence_score": 0.43,
+      "predicted_confidence_band": "low",
+      "predicted_review_action": "deep-review",
+      "actual_reviewer_decision": "needs_manual_classification"
+    }
+  ]
+}
