@@ -1,0 +1,9 @@
+review_id: REV-2026-0002
+generated_at: '2026-04-12T20:22:57Z'
+retrieval_policy_version: phase4-v1
+proposal_count: 1
+proposal_paths:
+- staging/reviews/REV-2026-0002/proposed/wiki/source-notes/meta-ads-course-module-1.md
+evidence_bundle_paths:
+- staging/reviews/REV-2026-0002/retrieval-assist/evidence/EV-0001.yaml
+notes: retrieval-assist overwritten run

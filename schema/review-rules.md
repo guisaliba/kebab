@@ -9,11 +9,17 @@
 - Claim ledger canonical path is `staging/reviews/REV-YYYY-NNNN/claim-ledger.jsonl`.
 - Retrieval-backed curation is explicit invocation via `scripts/curate/main.py` and writes only to `staging/reviews/REV-YYYY-NNNN/retrieval-assist/`.
 - `retrieval-assist/manifest.yaml` required fields: `review_id`, `generated_at`, `retrieval_policy_version`, `proposal_count`, `proposal_paths`, `evidence_bundle_paths`, `notes`.
-- `retrieval-assist/proposals.jsonl` entries must include `proposal_id`, `target_proposed_path`, `intended_wiki_path`, `change_type`, `summary`, `evidence_bundle_id`, `review_status`.
+- `retrieval-assist/proposals.jsonl` entries must include `proposal_id`, `target_proposed_path`, `intended_wiki_path`, `change_type`, `summary`, `evidence_bundle_id`, `review_status`, `confidence_score`, `confidence_band`, `confidence_reason_codes`, `review_action`.
 - `change_type` allowed values: `append_section`, `update_section`, `new_note_link`, `conflict_flag`.
 - `target_proposed_path` must point to `staging/reviews/REV-.../proposed/wiki/...`; `intended_wiki_path` is informational and must point under `wiki/...`.
 - Every evidence bundle (`retrieval-assist/evidence/EV-*.yaml`) must include structured grounding (`normalized_citations`, `source_ids`, citation format version) plus winner/supporting hit source markers and citations.
 - `winner` and every `supporting_hits` entry must include concrete `score` and `explain_payload` from retrieval scoring.
+- Evidence bundles are the canonical source for confidence via `confidence_assessment` with fields: `score`, `band`, `reason_codes`, `factor_breakdown`, `review_action`.
+- `proposals.jsonl` and `reviewer-summary.md` must mirror `confidence_assessment` values from `EV-*.yaml` (never recompute independently).
+- Confidence bands are fixed thresholds: `high >= 0.75`, `medium >= 0.45 and < 0.75`, `low < 0.45`.
+- Confidence reason-code enum: `claims_linked_strong`, `citations_grounded`, `supporting_context_diverse`, `weak_linked_claim_coverage`, `low_citation_coverage`, `single_supporting_context`, `duplicated_evidence_unavoidable`.
+- Reviewer action enum: `quick-approve`, `normal-review`, `deep-review`.
+- Reviewer action mapping is deterministic: `quick-approve` only for `high` without cautionary reason codes; `normal-review` for `medium` or `high` with cautionary codes; `deep-review` for `low` or any of `weak_linked_claim_coverage`, `low_citation_coverage`, `duplicated_evidence_unavoidable` (highest scrutiny wins).
 - `supporting_hits` must exclude `winner`; if no meaningful secondary support exists, emit fewer supporting hits instead of repeating winner-equivalent evidence.
 - Distinct supporting selection order is explicit: prefer different `path`, then different `page_type`, then different source/citation context.
 - `why_suggested` must be specific and grounded in existing review package claims (`claim-ledger.jsonl`) plus citation spans when available.
