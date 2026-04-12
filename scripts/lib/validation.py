@@ -32,6 +32,8 @@ REQUIRED_REVIEW_FILES = {
     "decision.md",
     "claim-ledger.jsonl",
 }
+REQUIRED_RETRIEVAL_ASSIST_FILES = {"manifest.yaml", "proposals.jsonl", "reviewer-summary.md"}
+ALLOWED_RETRIEVAL_CHANGE_TYPES = {"append_section", "update_section", "new_note_link", "conflict_flag"}
 
 
 def load_yaml(path: Path) -> dict[str, Any]:
@@ -217,6 +219,81 @@ def validate_review_package(review_dir: Path) -> list[str]:
                 continue
             if "/proposed/wiki/" not in proposed_path:
                 errors.append(f"proposed path not under proposed/wiki: {proposed_path}")
+
+    errors.extend(validate_retrieval_assist_artifacts(review_dir))
+    return errors
+
+
+def validate_retrieval_assist_artifacts(review_dir: Path) -> list[str]:
+    errors: list[str] = []
+    assist_dir = review_dir / "retrieval-assist"
+    if not assist_dir.exists():
+        return errors
+
+    for filename in REQUIRED_RETRIEVAL_ASSIST_FILES:
+        if not (assist_dir / filename).exists():
+            errors.append(f"{assist_dir / filename} missing")
+
+    manifest_path = assist_dir / "manifest.yaml"
+    if manifest_path.exists():
+        manifest = load_yaml(manifest_path)
+        required = {
+            "review_id",
+            "generated_at",
+            "retrieval_policy_version",
+            "proposal_count",
+            "proposal_paths",
+            "evidence_bundle_paths",
+            "notes",
+        }
+        for field in required:
+            if field not in manifest:
+                errors.append(f"{manifest_path} missing required field: {field}")
+        generated_at = manifest.get("generated_at")
+        if not isinstance(generated_at, str) or not is_iso8601_utc(generated_at):
+            errors.append(f"{manifest_path} invalid generated_at, expected ISO-8601 UTC")
+
+    proposals_path = assist_dir / "proposals.jsonl"
+    if proposals_path.exists():
+        for idx, line in enumerate(proposals_path.read_text(encoding="utf-8").splitlines(), start=1):
+            if not line.strip():
+                continue
+            try:
+                proposal = json.loads(line)
+            except json.JSONDecodeError as exc:
+                errors.append(f"{proposals_path}:{idx}: invalid JSON: {exc}")
+                continue
+
+            target_proposed_path = proposal.get("target_proposed_path")
+            if not isinstance(target_proposed_path, str) or f"staging/reviews/{review_dir.name}/proposed/wiki/" not in target_proposed_path:
+                errors.append(f"{proposals_path}:{idx}: invalid target_proposed_path")
+            elif not (ROOT / target_proposed_path).exists():
+                errors.append(f"{proposals_path}:{idx}: missing target_proposed_path file")
+
+            intended_wiki_path = proposal.get("intended_wiki_path")
+            if not isinstance(intended_wiki_path, str) or not intended_wiki_path.startswith("wiki/"):
+                errors.append(f"{proposals_path}:{idx}: invalid intended_wiki_path")
+
+            change_type = proposal.get("change_type")
+            if change_type not in ALLOWED_RETRIEVAL_CHANGE_TYPES:
+                errors.append(f"{proposals_path}:{idx}: invalid change_type {change_type}")
+
+            evidence_bundle_id = proposal.get("evidence_bundle_id")
+            if not isinstance(evidence_bundle_id, str):
+                errors.append(f"{proposals_path}:{idx}: missing evidence_bundle_id")
+                continue
+            evidence_path = assist_dir / "evidence" / f"{evidence_bundle_id}.yaml"
+            if not evidence_path.exists():
+                errors.append(f"{proposals_path}:{idx}: missing evidence bundle {evidence_bundle_id}")
+                continue
+            evidence = load_yaml(evidence_path)
+            grounding = evidence.get("grounding")
+            if not isinstance(grounding, dict):
+                errors.append(f"{evidence_path}: missing grounding block")
+                continue
+            normalized_citations = grounding.get("normalized_citations")
+            if not isinstance(normalized_citations, list):
+                errors.append(f"{evidence_path}: normalized_citations must be a list")
 
     return errors
 

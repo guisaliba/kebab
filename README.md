@@ -88,6 +88,33 @@ Validate package structure:
 python scripts/review/main.py --review-id REV-2026-0001
 ```
 
+### Retrieval-Assist (Staging-only)
+
+Generate retrieval-backed curation artifacts explicitly (not default on ingest):
+
+```bash
+python scripts/curate/main.py --review-id REV-2026-0001
+```
+
+Rerun behavior:
+
+- default: fails when `staging/reviews/REV-*/retrieval-assist/` already exists
+- use `--overwrite` to replace artifacts in place and refresh `generated_at`
+
+Artifacts are written only under:
+
+- `staging/reviews/REV-YYYY-NNNN/retrieval-assist/manifest.yaml`
+- `staging/reviews/REV-YYYY-NNNN/retrieval-assist/proposals.jsonl`
+- `staging/reviews/REV-YYYY-NNNN/retrieval-assist/evidence/EV-*.yaml`
+- `staging/reviews/REV-YYYY-NNNN/retrieval-assist/reviewer-summary.md`
+
+Contract notes:
+
+- `target_proposed_path` always points to `staging/reviews/REV-.../proposed/wiki/...`
+- `intended_wiki_path` is informational and points to `wiki/...`
+- evidence bundles carry structured citation grounding (`normalized_citations`, source markers, per-hit citations)
+- retrieval-assist never writes directly to `wiki/`
+
 ### Promote
 
 ```bash
@@ -175,12 +202,20 @@ Evaluation notes:
 - typo-sensitive diagnostics include `alias_influence` (`fuzzy_only`, `alias_only`, `fuzzy_plus_alias`) to show attribution
 - eval runner writes only under `exports/evals/` and does not mutate `wiki/`, `raw/`, or `staging/`
 
+### Retrieval Normalization Policy
+
+- keep core normalization deterministic (`lowercase`, accent folding, punctuation normalization, stable tokenization)
+- keep fuzzy matching calibrated and conservative (no broad default typo expansion)
+- keep alias overrides KB/domain-scoped, small, and explicit
+- future alias additions should be reviewable suggestions, not automatic growth
+- do not evolve a universal hardcoded typo dictionary
+
 ## Notes for agents
 
 Read these first:
 
 - `AGENTS.md`
-- `IMPLEMENTATION_BACKLOG.md`
+- `BACKLOG.md`
 - `schema/`
 - `prompts/`
 

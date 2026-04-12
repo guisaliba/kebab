@@ -102,6 +102,8 @@ def test_ingest_generates_review_package_and_never_writes_wiki() -> None:
         assert "## Proposed changes summary" in review_notes
         assert "## Proposed wiki files" in review_notes
 
+        assert not (review_dir / "retrieval-assist").exists()
+
         wiki_after = {path: _read(path) for path in (ROOT / "wiki").rglob("*.md")}
         assert wiki_before == wiki_after
     finally:
