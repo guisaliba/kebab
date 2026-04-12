@@ -7,6 +7,8 @@ from pathlib import Path
 import yaml
 
 from scripts.lib.paths import ROOT
+from scripts.lib.retrieval_curation import _extract_intent
+from scripts.lib.validation import validate_review_package
 
 
 def _read(path: Path) -> str:
@@ -116,6 +118,93 @@ def test_curate_generates_retrieval_assist_artifacts_and_never_writes_wiki() -> 
 
         wiki_after = {path: _read(path) for path in (ROOT / "wiki").rglob("*.md")}
         assert wiki_before == wiki_after
+    finally:
+        if review_dir.exists():
+            shutil.rmtree(review_dir)
+
+
+def test_curate_overwrite_replaces_existing_artifacts() -> None:
+    review_id = "REV-2099-9004"
+    review_dir, _ = _build_review_fixture(review_id)
+    try:
+        first = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "curate" / "main.py"), "--review-id", review_id],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert first.returncode == 0, first.stderr + first.stdout
+
+        assist_dir = review_dir / "retrieval-assist"
+        stale_evidence = assist_dir / "evidence" / "EV-9999.yaml"
+        stale_evidence.write_text("stale: true\n", encoding="utf-8")
+
+        overwrite = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "curate" / "main.py"), "--review-id", review_id, "--overwrite"],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert overwrite.returncode == 0, overwrite.stderr + overwrite.stdout
+        assert not stale_evidence.exists()
+    finally:
+        if review_dir.exists():
+            shutil.rmtree(review_dir)
+
+
+def test_extract_intent_deduplicates_title_and_heading() -> None:
+    content = (
+        "---\n"
+        "title: Meta Ads\n"
+        "---\n\n"
+        "# meta ads\n"
+        "Conteúdo\n"
+    )
+    assert _extract_intent(content, "fallback") == "Meta Ads"
+
+
+def test_review_validator_enforces_retrieval_assist_contract_fields() -> None:
+    review_id = "REV-2099-9005"
+    review_dir, _ = _build_review_fixture(review_id)
+    try:
+        run = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "curate" / "main.py"), "--review-id", review_id],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert run.returncode == 0, run.stderr + run.stdout
+
+        assist_dir = review_dir / "retrieval-assist"
+        manifest_path = assist_dir / "manifest.yaml"
+        manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+        manifest["review_id"] = "REV-0000-0000"
+        manifest["proposal_count"] = 999
+        manifest["proposal_paths"] = ["staging/reviews/REV-0000-0000/proposed/wiki/platforms/meta-ads.md"]
+        manifest["evidence_bundle_paths"] = [
+            f"staging/reviews/{review_id}/retrieval-assist/evidence/EV-9999.yaml"
+        ]
+        manifest_path.write_text(yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+        proposals_path = assist_dir / "proposals.jsonl"
+        broken_proposal = {
+            "target_proposed_path": f"staging/reviews/{review_id}/proposed/wiki/platforms/meta-ads.md",
+            "intended_wiki_path": "wiki/platforms/meta-ads.md",
+            "change_type": "update_section",
+            "evidence_bundle_id": "EV-0001",
+        }
+        proposals_path.write_text(json.dumps(broken_proposal, ensure_ascii=False) + "\n", encoding="utf-8")
+
+        errors = validate_review_package(review_dir)
+        assert any("review_id mismatch" in error for error in errors)
+        assert any("proposal_count mismatch" in error for error in errors)
+        assert any("missing required field proposal_id" in error for error in errors)
+        assert any("missing required field summary" in error for error in errors)
+        assert any("missing required field review_status" in error for error in errors)
+        assert any("evidence_bundle_paths do not match proposals.jsonl evidence bundles" in error for error in errors)
     finally:
         if review_dir.exists():
             shutil.rmtree(review_dir)

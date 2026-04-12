@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,22 @@ RETRIEVAL_POLICY_VERSION = "phase4-v1"
 
 def _winner_path(paths: list[str]) -> str | None:
     return paths[0] if paths else None
+
+
+def _normalize_intent_text(value: str) -> str:
+    return " ".join(value.split()).casefold()
+
+
+def _combine_intent_parts(primary: str, secondary: str) -> str:
+    primary_clean = primary.strip()
+    secondary_clean = secondary.strip()
+    if not primary_clean:
+        return secondary_clean
+    if not secondary_clean:
+        return primary_clean
+    if _normalize_intent_text(primary_clean) == _normalize_intent_text(secondary_clean):
+        return primary_clean
+    return f"{primary_clean} {secondary_clean}"
 
 
 def _search_paths(question: str, *, fuzzy: bool, aliases: bool) -> tuple[str, list[str], list[str]]:
@@ -55,11 +72,23 @@ def _search_paths(question: str, *, fuzzy: bool, aliases: bool) -> tuple[str, li
     )
 
 
-def _classify_alias_influence(question: str) -> str:
-    _, wiki_none, raw_none = _search_paths(question, fuzzy=False, aliases=False)
-    _, wiki_alias, raw_alias = _search_paths(question, fuzzy=False, aliases=True)
-    _, wiki_fuzzy, raw_fuzzy = _search_paths(question, fuzzy=True, aliases=False)
-    _, wiki_both, raw_both = _search_paths(question, fuzzy=True, aliases=True)
+def _collect_search_variants(question: str) -> dict[tuple[bool, bool], tuple[str, list[str], list[str]]]:
+    variants: dict[tuple[bool, bool], tuple[str, list[str], list[str]]] = {}
+    for fuzzy, aliases in ((False, False), (False, True), (True, False), (True, True)):
+        variants[(fuzzy, aliases)] = _search_paths(question, fuzzy=fuzzy, aliases=aliases)
+    return variants
+
+
+def _classify_alias_influence(
+    question: str,
+    *,
+    search_variants: dict[tuple[bool, bool], tuple[str, list[str], list[str]]] | None = None,
+) -> str:
+    variants = search_variants or _collect_search_variants(question)
+    _, wiki_none, raw_none = variants[(False, False)]
+    _, wiki_alias, raw_alias = variants[(False, True)]
+    _, wiki_fuzzy, raw_fuzzy = variants[(True, False)]
+    _, wiki_both, raw_both = variants[(True, True)]
 
     baseline = _winner_path(wiki_none + raw_none)
     alias_only = _winner_path(wiki_alias + raw_alias)
@@ -89,10 +118,10 @@ def _extract_intent(content: str, fallback: str) -> str:
         title = str(doc.frontmatter.get("title", fallback))
         headings = [line.lstrip("#").strip() for line in doc.body.splitlines() if line.strip().startswith("#")]
         heading = headings[0] if headings else ""
-        return f"{title} {heading}".strip()
+        return _combine_intent_parts(title, heading)
     for line in content.splitlines():
         if line.strip():
-            return f"{fallback} {line.strip()}".strip()
+            return _combine_intent_parts(fallback, line.strip())
     return fallback
 
 
@@ -145,8 +174,18 @@ def generate_retrieval_assist(review_id: str, overwrite: bool = False) -> Path:
         raise ValueError("review manifest proposed_paths must be a list")
 
     assist_dir = review_dir / "retrieval-assist"
-    if assist_dir.exists() and not overwrite:
-        raise ValueError(f"retrieval-assist already exists for {review_id}; rerun with --overwrite")
+    if assist_dir.exists():
+        if not overwrite:
+            raise ValueError(f"retrieval-assist already exists for {review_id}; rerun with --overwrite")
+        resolved_review_dir = review_dir.resolve()
+        resolved_assist_dir = assist_dir.resolve()
+        if (
+            assist_dir.is_symlink()
+            or resolved_assist_dir.name != "retrieval-assist"
+            or not resolved_assist_dir.is_relative_to(resolved_review_dir)
+        ):
+            raise ValueError(f"unsafe retrieval-assist path for overwrite: {assist_dir}")
+        shutil.rmtree(assist_dir)
     assist_dir.mkdir(parents=True, exist_ok=True)
     evidence_dir = assist_dir / "evidence"
     evidence_dir.mkdir(parents=True, exist_ok=True)
@@ -167,7 +206,8 @@ def generate_retrieval_assist(review_id: str, overwrite: bool = False) -> Path:
             continue
         content = abs_path.read_text(encoding="utf-8")
         question = _extract_intent(content, abs_path.stem)
-        consulted_layers, wiki_hits, raw_hits = _search_paths(question, fuzzy=False, aliases=True)
+        search_variants = _collect_search_variants(question)
+        consulted_layers, wiki_hits, raw_hits = search_variants[(False, True)]
         winner_paths = wiki_hits + raw_hits
         supporting_paths = winner_paths[:3]
         winner = _hit_payload(supporting_paths[0]) if supporting_paths else {"path": "", "snippet": "", "source_markers": [], "citations": []}
@@ -192,7 +232,7 @@ def generate_retrieval_assist(review_id: str, overwrite: bool = False) -> Path:
                 "consulted_layers": consulted_layers,
                 "fuzzy_enabled": False,
                 "aliases_enabled": True,
-                "alias_influence_class": _classify_alias_influence(question),
+                "alias_influence_class": _classify_alias_influence(question, search_variants=search_variants),
             },
             "grounding": {
                 "normalized_citations": normalized_citations,
