@@ -1,0 +1,55 @@
+evidence_bundle_id: EV-0002
+proposal_id: PRP-0002
+question_or_intent: Meta Ads Meta Ads
+retrieval_context:
+  consulted_layers: wiki
+  fuzzy_enabled: false
+  aliases_enabled: true
+  alias_influence_class: none
+grounding:
+  normalized_citations:
+  - &id001
+    source_id: SRC-2026-0001
+    evidence_ref: §lesson-01 00:00:00-00:02:10
+  - &id002
+    source_id: SRC-2026-0001
+    evidence_ref: §lesson-01 00:02:11-00:05:30
+  - &id003
+    source_id: SRC-2026-0001
+    evidence_ref: §lesson-01 00:02:11-00:05:30
+  source_ids:
+  - SRC-2026-0001
+  citation_format_version: v1
+winner:
+  path: wiki/platforms/meta-ads.md
+  snippet: '---'
+  source_markers:
+  - '[Sources: SRC-2026-0001 §lesson-01 00:00:00-00:02:10]'
+  - '[Sources: SRC-2026-0001 §lesson-01 00:02:11-00:05:30]'
+  - '[Sources: SRC-2026-0001 §lesson-01 00:02:11-00:05:30]'
+  citations:
+  - source_id: SRC-2026-0001
+    evidence_ref: §lesson-01 00:00:00-00:02:10
+  - source_id: SRC-2026-0001
+    evidence_ref: §lesson-01 00:02:11-00:05:30
+  - source_id: SRC-2026-0001
+    evidence_ref: §lesson-01 00:02:11-00:05:30
+  score: null
+  explain_payload: null
+supporting_hits:
+- path: wiki/platforms/meta-ads.md
+  snippet: '---'
+  source_markers:
+  - '[Sources: SRC-2026-0001 §lesson-01 00:00:00-00:02:10]'
+  - '[Sources: SRC-2026-0001 §lesson-01 00:02:11-00:05:30]'
+  - '[Sources: SRC-2026-0001 §lesson-01 00:02:11-00:05:30]'
+  citations:
+  - *id001
+  - *id002
+  - *id003
+  score: null
+why_suggested: Retrieved evidence overlaps proposed update target and supports reviewer
+  inspection.
+risk_or_uncertainty: Suggestion is staging-only and requires reviewer approval before
+  promotion.
+generated_at: '2026-04-12T16:12:25Z'

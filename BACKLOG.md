@@ -1,6 +1,8 @@
 # Revised Implementation Backlog
 
-## Completed foundation
+## Completed (through Phase 3E)
+
+### Foundation and vertical slice
 
 - Core repository mechanics
 - Review package generation and validation
@@ -9,37 +11,41 @@
 - Claim extraction
 - Contradiction detection
 - Source-note generation
-- Wiki-first retrieval
-- Raw fallback retrieval
-- BM25 + heuristic ranking
-- Local materialized indexing
-- Explainable ranking output
-- Retrieval roles
-- Stale-index warnings
-- Golden-query evaluation harness
-- Category-sliced retrieval diagnostics
 
-## Phase 3C — Retrieval policy tuning and calibration
+### Retrieval hardening (3A-3E)
 
-Focus on fixing what the eval data says is weak.
+- Wiki-first retrieval + deterministic raw fallback
+- BM25 + heuristic ranking with explainability
+- Local materialized indexing + freshness trust signals
+- Retrieval roles and navigation-page handling
+- Golden-query evaluation harness + category-sliced diagnostics
+- Failure-code loop for `RAW_FALLBACK_MISS`, `FUZZY_HELP_EXPECTED`, `CANONICAL_ORDER_MISS`, `TOP1_MISS`
+- Raw evidence top-1 disambiguation (chunk/segment/timecode)
+- Typo-heavy tactic-vs-platform top-1 disambiguation
+- Alias attribution diagnostics (`alias_only`, `fuzzy_only`, `both_independently`, `combined_only`, `alias_plus_fuzzy_interaction`, `none`)
+- Centralized raw evidence alignment helper for explicit component scoring
+- KB/domain-scoped alias overrides (minimal, explicit) with runtime ablation support
 
-- Improve raw fallback trigger and ranking for evidence-style queries
-- Tune fuzzy matching thresholds and token gating
-- Strengthen canonical-over-source-note precedence for topical queries
-- Expand top-1-labeled queries so top-1 correctness becomes meaningful
-- Use failure codes as tuning backlog:
-  - `RAW_FALLBACK_MISS`
-  - `FUZZY_HELP_EXPECTED`
-  - `CANONICAL_ORDER_MISS`
+## Phase 4 — Retrieval-backed curation assistance (next)
 
-## Phase 4 — Retrieval-backed curation assistance
+Staging-only. No direct writes to `wiki/`.
 
-Still staging-only. No direct wiki writes.
-
-- Generate retrieval-backed proposed page updates in `staging/`
-- Attach explicit evidence bundles to proposed edits
+- Use retrieval outputs to support proposed wiki updates under `staging/`
+- Attach explicit evidence bundles to each proposed change
 - Generate reviewer-facing “why this change is suggested” notes
 - Keep all suggestions review-gated
+- Preserve retrieval-sensitive invariants from 3E:
+  - keep alias attribution classes stable
+  - keep centralized raw evidence alignment helper stable
+  - no regression in retrieval/eval guardrails
+
+## Retrieval normalization policy (long-term)
+
+- Core normalization stays minimal and deterministic (lowercase, accent folding, punctuation normalization, stable tokenization)
+- Fuzzy matching remains calibrated and conservative (no default broad expansion)
+- Alias overrides remain KB/domain-scoped and explicit (small curated maps)
+- Future alias growth should be reviewable suggestions, not automatic mutation
+- No universal hardcoded typo dictionary across all domains
 
 ## Phase 5 — Ingestion expansion
 

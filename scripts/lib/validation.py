@@ -32,6 +32,8 @@ REQUIRED_REVIEW_FILES = {
     "decision.md",
     "claim-ledger.jsonl",
 }
+REQUIRED_RETRIEVAL_ASSIST_FILES = {"manifest.yaml", "proposals.jsonl", "reviewer-summary.md"}
+ALLOWED_RETRIEVAL_CHANGE_TYPES = {"append_section", "update_section", "new_note_link", "conflict_flag"}
 
 
 def load_yaml(path: Path) -> dict[str, Any]:
@@ -217,6 +219,185 @@ def validate_review_package(review_dir: Path) -> list[str]:
                 continue
             if "/proposed/wiki/" not in proposed_path:
                 errors.append(f"proposed path not under proposed/wiki: {proposed_path}")
+
+    errors.extend(validate_retrieval_assist_artifacts(review_dir))
+    return errors
+
+
+def validate_retrieval_assist_artifacts(review_dir: Path) -> list[str]:
+    errors: list[str] = []
+    assist_dir = review_dir / "retrieval-assist"
+    if not assist_dir.exists():
+        return errors
+    root_resolved = ROOT.resolve()
+    expected_proposed_root = (review_dir / "proposed" / "wiki").resolve()
+    expected_evidence_root = (assist_dir / "evidence").resolve()
+
+    manifest_proposal_count: int | None = None
+    manifest_proposal_paths: list[str] | None = None
+    manifest_evidence_paths: list[str] | None = None
+
+    for filename in REQUIRED_RETRIEVAL_ASSIST_FILES:
+        if not (assist_dir / filename).exists():
+            errors.append(f"{assist_dir / filename} missing")
+
+    manifest_path = assist_dir / "manifest.yaml"
+    if manifest_path.exists():
+        manifest = load_yaml(manifest_path)
+        required = {
+            "review_id",
+            "generated_at",
+            "retrieval_policy_version",
+            "proposal_count",
+            "proposal_paths",
+            "evidence_bundle_paths",
+            "notes",
+        }
+        for field in required:
+            if field not in manifest:
+                errors.append(f"{manifest_path} missing required field: {field}")
+        review_id = manifest.get("review_id")
+        if not isinstance(review_id, str):
+            errors.append(f"{manifest_path} review_id must be a string")
+        elif review_id != review_dir.name:
+            errors.append(f"{manifest_path} review_id mismatch: expected {review_dir.name}, got {review_id}")
+        generated_at = manifest.get("generated_at")
+        if not isinstance(generated_at, str) or not is_iso8601_utc(generated_at):
+            errors.append(f"{manifest_path} invalid generated_at, expected ISO-8601 UTC")
+        proposal_count = manifest.get("proposal_count")
+        if not isinstance(proposal_count, int) or proposal_count < 0:
+            errors.append(f"{manifest_path} proposal_count must be a non-negative integer")
+        else:
+            manifest_proposal_count = proposal_count
+
+        proposal_paths = manifest.get("proposal_paths")
+        if not isinstance(proposal_paths, list):
+            errors.append(f"{manifest_path} proposal_paths must be a list")
+        else:
+            manifest_proposal_paths = []
+            for idx, proposal_path in enumerate(proposal_paths, start=1):
+                if not isinstance(proposal_path, str):
+                    errors.append(f"{manifest_path} proposal_paths[{idx}] must be a string")
+                    continue
+                manifest_proposal_paths.append(proposal_path)
+                resolved_proposal_path = (ROOT / proposal_path).resolve()
+                if not resolved_proposal_path.is_relative_to(root_resolved):
+                    errors.append(f"{manifest_path} proposal_paths[{idx}] escapes repository root")
+                    continue
+                if not resolved_proposal_path.is_relative_to(expected_proposed_root):
+                    errors.append(f"{manifest_path} proposal_paths[{idx}] not under review proposed/wiki")
+                    continue
+                if not resolved_proposal_path.exists():
+                    errors.append(f"{manifest_path} proposal_paths[{idx}] missing file: {proposal_path}")
+
+        evidence_bundle_paths = manifest.get("evidence_bundle_paths")
+        if not isinstance(evidence_bundle_paths, list):
+            errors.append(f"{manifest_path} evidence_bundle_paths must be a list")
+        else:
+            manifest_evidence_paths = []
+            for idx, evidence_bundle_path in enumerate(evidence_bundle_paths, start=1):
+                if not isinstance(evidence_bundle_path, str):
+                    errors.append(f"{manifest_path} evidence_bundle_paths[{idx}] must be a string")
+                    continue
+                manifest_evidence_paths.append(evidence_bundle_path)
+                resolved_evidence_bundle_path = (ROOT / evidence_bundle_path).resolve()
+                if not resolved_evidence_bundle_path.is_relative_to(root_resolved):
+                    errors.append(f"{manifest_path} evidence_bundle_paths[{idx}] escapes repository root")
+                    continue
+                if not resolved_evidence_bundle_path.is_relative_to(expected_evidence_root):
+                    errors.append(f"{manifest_path} evidence_bundle_paths[{idx}] not under retrieval-assist/evidence")
+                    continue
+                if not resolved_evidence_bundle_path.exists():
+                    errors.append(f"{manifest_path} evidence_bundle_paths[{idx}] missing file: {evidence_bundle_path}")
+
+    proposals_path = assist_dir / "proposals.jsonl"
+    parsed_proposal_count = 0
+    proposal_paths_from_jsonl: list[str] = []
+    evidence_paths_from_jsonl: list[str] = []
+    if proposals_path.exists():
+        for idx, line in enumerate(proposals_path.read_text(encoding="utf-8").splitlines(), start=1):
+            if not line.strip():
+                continue
+            try:
+                proposal = json.loads(line)
+            except json.JSONDecodeError as exc:
+                errors.append(f"{proposals_path}:{idx}: invalid JSON: {exc}")
+                continue
+            parsed_proposal_count += 1
+
+            required = {
+                "proposal_id",
+                "target_proposed_path",
+                "intended_wiki_path",
+                "change_type",
+                "summary",
+                "evidence_bundle_id",
+                "review_status",
+            }
+            for field in required:
+                if field not in proposal:
+                    errors.append(f"{proposals_path}:{idx}: missing required field {field}")
+
+            proposal_id = proposal.get("proposal_id")
+            if not isinstance(proposal_id, str) or not proposal_id.strip():
+                errors.append(f"{proposals_path}:{idx}: invalid proposal_id")
+
+            target_proposed_path = proposal.get("target_proposed_path")
+            if not isinstance(target_proposed_path, str):
+                errors.append(f"{proposals_path}:{idx}: invalid target_proposed_path")
+            else:
+                resolved_target_path = (ROOT / target_proposed_path).resolve()
+                if not resolved_target_path.is_relative_to(root_resolved):
+                    errors.append(f"{proposals_path}:{idx}: target_proposed_path escapes repository root")
+                elif not resolved_target_path.is_relative_to(expected_proposed_root):
+                    errors.append(f"{proposals_path}:{idx}: invalid target_proposed_path")
+                elif not resolved_target_path.exists():
+                    errors.append(f"{proposals_path}:{idx}: missing target_proposed_path file")
+                else:
+                    proposal_paths_from_jsonl.append(target_proposed_path)
+
+            intended_wiki_path = proposal.get("intended_wiki_path")
+            if not isinstance(intended_wiki_path, str) or not intended_wiki_path.startswith("wiki/"):
+                errors.append(f"{proposals_path}:{idx}: invalid intended_wiki_path")
+
+            change_type = proposal.get("change_type")
+            if change_type not in ALLOWED_RETRIEVAL_CHANGE_TYPES:
+                errors.append(f"{proposals_path}:{idx}: invalid change_type {change_type}")
+
+            summary = proposal.get("summary")
+            if not isinstance(summary, str) or not summary.strip():
+                errors.append(f"{proposals_path}:{idx}: invalid summary")
+
+            review_status = proposal.get("review_status")
+            if review_status not in PAGE_REVIEW_STATUSES:
+                errors.append(f"{proposals_path}:{idx}: invalid review_status {review_status}")
+
+            evidence_bundle_id = proposal.get("evidence_bundle_id")
+            if not isinstance(evidence_bundle_id, str):
+                errors.append(f"{proposals_path}:{idx}: missing evidence_bundle_id")
+                continue
+            evidence_path = assist_dir / "evidence" / f"{evidence_bundle_id}.yaml"
+            if not evidence_path.exists():
+                errors.append(f"{proposals_path}:{idx}: missing evidence bundle {evidence_bundle_id}")
+                continue
+            evidence_paths_from_jsonl.append(str(evidence_path.relative_to(ROOT)))
+            evidence = load_yaml(evidence_path)
+            grounding = evidence.get("grounding")
+            if not isinstance(grounding, dict):
+                errors.append(f"{evidence_path}: missing grounding block")
+                continue
+            normalized_citations = grounding.get("normalized_citations")
+            if not isinstance(normalized_citations, list):
+                errors.append(f"{evidence_path}: normalized_citations must be a list")
+
+    if manifest_proposal_count is not None and manifest_proposal_count != parsed_proposal_count:
+        errors.append(
+            f"{manifest_path} proposal_count mismatch: manifest={manifest_proposal_count}, proposals_jsonl={parsed_proposal_count}"
+        )
+    if manifest_proposal_paths is not None and set(manifest_proposal_paths) != set(proposal_paths_from_jsonl):
+        errors.append(f"{manifest_path} proposal_paths do not match proposals.jsonl target_proposed_path values")
+    if manifest_evidence_paths is not None and set(manifest_evidence_paths) != set(evidence_paths_from_jsonl):
+        errors.append(f"{manifest_path} evidence_bundle_paths do not match proposals.jsonl evidence bundles")
 
     return errors
 

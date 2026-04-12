@@ -11,6 +11,7 @@ import yaml
 from scripts.lib.frontmatter import dump_markdown_with_frontmatter, parse_markdown_with_frontmatter
 from scripts.lib.ids import next_review_id, next_wiki_id
 from scripts.lib.paths import ROOT
+from scripts.lib.retrieval_curation import generate_retrieval_assist
 from scripts.lib.time import utc_now_iso8601
 
 
@@ -375,7 +376,15 @@ def _build_proposed_updates(
     return proposed_paths, "\n".join(f"- {path}" for path in link_paths)
 
 
-def create_review_package(review_id: str, source_manifest: dict[str, Any], notes: str, chunk_paths: list[Path]) -> Path:
+def create_review_package(
+    review_id: str,
+    source_manifest: dict[str, Any],
+    notes: str,
+    chunk_paths: list[Path],
+    *,
+    run_retrieval_assist: bool = False,
+    retrieval_assist_overwrite: bool = False,
+) -> Path:
     review_dir = ROOT / "staging" / "reviews" / review_id
     review_dir.mkdir(parents=True, exist_ok=True)
 
@@ -421,4 +430,13 @@ def create_review_package(review_id: str, source_manifest: dict[str, Any], notes
     )
     _write_claim_ledger(review_dir / "claim-ledger.jsonl", claims)
     (review_dir / "diff.patch").write_text("", encoding="utf-8")
+    if run_retrieval_assist:
+        assist_dir = generate_retrieval_assist(review_id=review_id, overwrite=retrieval_assist_overwrite)
+        manifest["retrieval_assist_path"] = str(assist_dir.relative_to(ROOT))
+        manifest["retrieval_assist_manifest"] = str((assist_dir / "manifest.yaml").relative_to(ROOT))
+        manifest["updated_at"] = utc_now_iso8601()
+        (review_dir / "manifest.yaml").write_text(
+            yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True),
+            encoding="utf-8",
+        )
     return review_dir

@@ -1,11 +1,11 @@
 {
   "index_version": 2,
   "corpus_type": "raw",
-  "indexed_at": "2026-04-11T23:58:53Z",
+  "indexed_at": "2026-04-12T16:11:53Z",
   "documents": [
     {
       "path": "raw/sources/SRC-2026-0001-meta-ads-course/chunks/0001.md",
-      "mtime": 1775945871.6390305,
+      "mtime": 1775953489.2891984,
       "content_hash": "cc8e1f60c8083313acc5981a1be30823b5c7b321f318ec3c68bfeab4652d632f",
       "filename": "0001.md",
       "title": "0001",
@@ -105,6 +105,62 @@
         "filename": "lesson-01 md",
         "frontmatter": "source_id src-2026-0001-meta-ads-course",
         "body": "transcript - lesson-01 segment 1 00 00 00 - 00 02 10 hoje vamos falar sobre estrutura de campanha em meta ads e por que o roas sozinho nem sempre e suficiente para diagnosticar um problema segment 2 00 02 11 - 00 05 30 quando o criativo esta fraco voce pode ver cpm aceitavel mas ctr baixo quando a oferta esta ruim as vezes o clique vem mas a conversao nao acompanha segment 3 00 05 31 - 00 08 40 broad targeting pode funcionar muito bem quando a velocidade de teste criativo e alta e quando a oferta e forte nao e uma regra universal"
+      }
+    },
+    {
+      "path": "raw/sources/SRC-2099-9010-phase4-proof/chunks/0001.md",
+      "mtime": 1776010282.4628885,
+      "content_hash": "4a225b15cdb991c93214a3081218676af52935a1646b0953d6b6fc7dfaab38fc",
+      "filename": "0001.md",
+      "title": "0001",
+      "headings": [
+        "Lesson 01",
+        "Segment 01 [00:00:10 - 00:00:40]",
+        "Segment 02 [00:00:41 - 00:01:20]",
+        "Segment 03 [00:01:21 - 00:02:00]"
+      ],
+      "frontmatter": {
+        "source_id": "SRC-2099-9010-phase4-proof"
+      },
+      "body_text": "# Lesson 01\n\n## Segment 01 [00:00:10 - 00:00:40]\nQuando o ROAS cai e o CPM sobe ao mesmo tempo, o primeiro passo de diagnostico e separar problema de criativo de problema de audiencia.\n\n## Segment 02 [00:00:41 - 00:01:20]\nBroad targeting pode funcionar melhor com sinais fortes de conversao, mas nao deve ser tratado como regra universal sem validar contexto e objetivo da campanha.\n\n## Segment 03 [00:01:21 - 00:02:00]\nPara revisao editorial, toda recomendacao precisa manter rastreabilidade com citacoes especificas por segmento e fonte.\n",
+      "citations_present": false,
+      "confidence": "",
+      "page_type": "raw-chunk",
+      "retrieval_role": "auxiliary",
+      "normalized_fields": {
+        "title": "0001",
+        "headings": "lesson 01 segment 01 00 00 10 - 00 00 40 segment 02 00 00 41 - 00 01 20 segment 03 00 01 21 - 00 02 00",
+        "filename": "0001 md",
+        "frontmatter": "source_id src-2099-9010-phase4-proof",
+        "body": "lesson 01 segment 01 00 00 10 - 00 00 40 quando o roas cai e o cpm sobe ao mesmo tempo o primeiro passo de diagnostico e separar problema de criativo de problema de audiencia segment 02 00 00 41 - 00 01 20 broad targeting pode funcionar melhor com sinais fortes de conversao mas nao deve ser tratado como regra universal sem validar contexto e objetivo da campanha segment 03 00 01 21 - 00 02 00 para revisao editorial toda recomendacao precisa manter rastreabilidade com citacoes especificas por segmento e fonte"
+      }
+    },
+    {
+      "path": "raw/sources/SRC-2099-9010-phase4-proof/transcript/lesson-01.md",
+      "mtime": 1776010278.0835454,
+      "content_hash": "4a225b15cdb991c93214a3081218676af52935a1646b0953d6b6fc7dfaab38fc",
+      "filename": "lesson-01.md",
+      "title": "lesson-01",
+      "headings": [
+        "Lesson 01",
+        "Segment 01 [00:00:10 - 00:00:40]",
+        "Segment 02 [00:00:41 - 00:01:20]",
+        "Segment 03 [00:01:21 - 00:02:00]"
+      ],
+      "frontmatter": {
+        "source_id": "SRC-2099-9010-phase4-proof"
+      },
+      "body_text": "# Lesson 01\n\n## Segment 01 [00:00:10 - 00:00:40]\nQuando o ROAS cai e o CPM sobe ao mesmo tempo, o primeiro passo de diagnostico e separar problema de criativo de problema de audiencia.\n\n## Segment 02 [00:00:41 - 00:01:20]\nBroad targeting pode funcionar melhor com sinais fortes de conversao, mas nao deve ser tratado como regra universal sem validar contexto e objetivo da campanha.\n\n## Segment 03 [00:01:21 - 00:02:00]\nPara revisao editorial, toda recomendacao precisa manter rastreabilidade com citacoes especificas por segmento e fonte.\n",
+      "citations_present": false,
+      "confidence": "",
+      "page_type": "raw-chunk",
+      "retrieval_role": "auxiliary",
+      "normalized_fields": {
+        "title": "lesson-01",
+        "headings": "lesson 01 segment 01 00 00 10 - 00 00 40 segment 02 00 00 41 - 00 01 20 segment 03 00 01 21 - 00 02 00",
+        "filename": "lesson-01 md",
+        "frontmatter": "source_id src-2099-9010-phase4-proof",
+        "body": "lesson 01 segment 01 00 00 10 - 00 00 40 quando o roas cai e o cpm sobe ao mesmo tempo o primeiro passo de diagnostico e separar problema de criativo de problema de audiencia segment 02 00 00 41 - 00 01 20 broad targeting pode funcionar melhor com sinais fortes de conversao mas nao deve ser tratado como regra universal sem validar contexto e objetivo da campanha segment 03 00 01 21 - 00 02 00 para revisao editorial toda recomendacao precisa manter rastreabilidade com citacoes especificas por segmento e fonte"
       }
     }
   ]

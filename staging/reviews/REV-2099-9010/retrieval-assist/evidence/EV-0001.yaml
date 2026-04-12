@@ -1,0 +1,35 @@
+evidence_bundle_id: EV-0001
+proposal_id: PRP-0001
+question_or_intent: Source Note - SRC-2099-9010 Source Note — SRC-2099-9010
+retrieval_context:
+  consulted_layers: wiki
+  fuzzy_enabled: false
+  aliases_enabled: true
+  alias_influence_class: none
+grounding:
+  normalized_citations: []
+  source_ids: []
+  citation_format_version: v1
+winner:
+  path: wiki/source-notes/src-2026-0001-meta-ads-course-module-1.md
+  snippet: '---'
+  source_markers: []
+  citations: []
+  score: null
+  explain_payload: null
+supporting_hits:
+- path: wiki/source-notes/src-2026-0001-meta-ads-course-module-1.md
+  snippet: '---'
+  source_markers: []
+  citations: []
+  score: null
+- path: wiki/overview.md
+  snippet: '---'
+  source_markers: []
+  citations: []
+  score: null
+why_suggested: Retrieved evidence overlaps proposed update target and supports reviewer
+  inspection.
+risk_or_uncertainty: Suggestion is staging-only and requires reviewer approval before
+  promotion.
+generated_at: '2026-04-12T16:12:25Z'
