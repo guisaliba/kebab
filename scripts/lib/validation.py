@@ -470,6 +470,9 @@ def validate_retrieval_assist_artifacts(review_dir: Path) -> list[str]:
                 errors.append(f"{evidence_path}: quality_flags must be a list")
             else:
                 for flag_idx, flag in enumerate(quality_flags, start=1):
+                    if not isinstance(flag, str):
+                        errors.append(f"{evidence_path}: quality_flags[{flag_idx}] must be a string")
+                        continue
                     if flag not in ALLOWED_RETRIEVAL_QUALITY_FLAGS:
                         errors.append(f"{evidence_path}: quality_flags[{flag_idx}] invalid value {flag}")
 
@@ -488,7 +491,7 @@ def validate_retrieval_assist_artifacts(review_dir: Path) -> list[str]:
             if not isinstance(why_suggested, str) or not why_suggested.strip():
                 errors.append(f"{evidence_path}: why_suggested must be a non-empty string")
             if isinstance(quality_flags, list) and "weak_linked_claim_coverage" in quality_flags:
-                if "No linked claims found in claim-ledger.jsonl" not in why_suggested:
+                if isinstance(why_suggested, str) and "No linked claims found in claim-ledger.jsonl" not in why_suggested:
                     errors.append(f"{evidence_path}: weak_linked_claim_coverage requires explicit linked-claim absence in why_suggested")
 
             rationale_claim_ids = evidence.get("rationale_claim_ids")
@@ -502,7 +505,7 @@ def validate_retrieval_assist_artifacts(review_dir: Path) -> list[str]:
                     if claim_ids and claim_id not in claim_ids:
                         errors.append(f"{evidence_path}: rationale_claim_ids[{claim_idx}] not found in claim-ledger.jsonl")
             if isinstance(rationale_claim_ids, list) and not rationale_claim_ids:
-                if "No linked claims found in claim-ledger.jsonl" not in why_suggested:
+                if isinstance(why_suggested, str) and "No linked claims found in claim-ledger.jsonl" not in why_suggested:
                     errors.append(f"{evidence_path}: empty rationale_claim_ids must be reflected in why_suggested")
 
     if manifest_proposal_count is not None and manifest_proposal_count != parsed_proposal_count:
