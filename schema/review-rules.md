@@ -13,4 +13,7 @@
 - `change_type` allowed values: `append_section`, `update_section`, `new_note_link`, `conflict_flag`.
 - `target_proposed_path` must point to `staging/reviews/REV-.../proposed/wiki/...`; `intended_wiki_path` is informational and must point under `wiki/...`.
 - Every evidence bundle (`retrieval-assist/evidence/EV-*.yaml`) must include structured grounding (`normalized_citations`, `source_ids`, citation format version) plus winner/supporting hit source markers and citations.
+- `winner` and every `supporting_hits` entry must include concrete `score` and `explain_payload` from retrieval scoring.
+- `why_suggested` must be specific and grounded in existing review package claims (`claim-ledger.jsonl`) plus citation spans when available.
+- Citation parsing is conservative: malformed/partial `[Sources: ...]` segments are ignored, never auto-filled.
 - Reruns fail by default if retrieval-assist artifacts already exist; rerun with `--overwrite` to replace and update `generated_at`.

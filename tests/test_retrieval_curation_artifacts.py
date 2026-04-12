@@ -7,7 +7,7 @@ from pathlib import Path
 import yaml
 
 from scripts.lib.paths import ROOT
-from scripts.lib.retrieval_curation import _extract_intent
+from scripts.lib.retrieval_curation import _extract_intent, _normalize_citation_marker
 from scripts.lib.validation import validate_review_package
 
 
@@ -46,7 +46,10 @@ def _build_review_fixture(review_id: str) -> tuple[Path, Path]:
     (review_dir / "contradictions.md").write_text("# Contradictions\n", encoding="utf-8")
     (review_dir / "open-questions.md").write_text("# Open Questions\n", encoding="utf-8")
     (review_dir / "claim-ledger.jsonl").write_text(
-        '{"claim_id":"CLM-1","source_id":"SRC-2099-9003","claim":"x"}\n',
+        (
+            '{"claim_id":"CLM-0001","source_id":"SRC-2099-9003","claim":"ROAS baixo exige diagnostico por criativo e audiencia","type":"diagnostic","confidence":"high","evidence":["0001 00:00:10-00:00:40"],"touches":["/wiki/platforms/meta-ads.md"]}\n'
+            '{"claim_id":"CLM-0002","source_id":"SRC-2099-9003","claim":"Broad targeting depende de contexto","type":"prescriptive","confidence":"medium","evidence":["0001 00:00:41-00:01:20"],"touches":["/wiki/tactics/broad-targeting.md"]}\n'
+        ),
         encoding="utf-8",
     )
     (review_dir / "decision.md").write_text("# Decision\n\nStatus: pending\n", encoding="utf-8")
@@ -88,6 +91,15 @@ def test_curate_generates_retrieval_assist_artifacts_and_never_writes_wiki() -> 
         evidence = yaml.safe_load(evidence_path.read_text(encoding="utf-8"))
         assert "grounding" in evidence
         assert isinstance(evidence["grounding"]["normalized_citations"], list)
+        assert isinstance(evidence["grounding"]["source_ids"], list)
+        assert evidence["grounding"]["citation_format_version"] == "v1"
+        assert isinstance(evidence["winner"]["score"], float)
+        assert isinstance(evidence["winner"]["explain_payload"], dict)
+        assert isinstance(evidence["supporting_hits"], list)
+        assert evidence["supporting_hits"]
+        assert isinstance(evidence["supporting_hits"][0]["score"], float)
+        assert isinstance(evidence["supporting_hits"][0]["explain_payload"], dict)
+        assert "CLM-0001" in evidence["why_suggested"]
         assert evidence["retrieval_context"]["alias_influence_class"] in {
             "alias_only",
             "fuzzy_only",
@@ -208,3 +220,15 @@ def test_review_validator_enforces_retrieval_assist_contract_fields() -> None:
     finally:
         if review_dir.exists():
             shutil.rmtree(review_dir)
+
+
+def test_citation_marker_parsing_is_conservative_and_deterministic() -> None:
+    marker = "[Sources: SRC-2026-0001 §lesson-01 00:00:10-00:00:40; MALFORMED; SRC-2026-0002 ch.03]"
+    parsed = _normalize_citation_marker(marker)
+    assert parsed == [
+        {"source_id": "SRC-2026-0001", "evidence_ref": "§lesson-01 00:00:10-00:00:40"},
+        {"source_id": "SRC-2026-0002", "evidence_ref": "ch.03"},
+    ]
+
+    invalid = _normalize_citation_marker("[Sources: SRC-2026-0001; incomplete]")
+    assert invalid == []
