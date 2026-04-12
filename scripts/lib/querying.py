@@ -11,6 +11,7 @@ from rank_bm25 import BM25Okapi
 
 from scripts.lib.indexing import index_freshness, load_index, normalize_text, tokenize, write_index
 from scripts.lib.paths import INDEX_DIR, ROOT
+from scripts.lib.retrieval_aliases import apply_scoped_aliases
 
 EVIDENCE_INTENT_TERMS = {
     "chunk",
@@ -27,18 +28,6 @@ EVIDENCE_INTENT_TERMS = {
     "end",
 }
 CANONICAL_CUE_TERMS = {"canonical", "platform", "tactic", "playbook", "metric", "overview", "vs", "versus"}
-TYPO_NORMALIZATION_MAP = {
-    "brod": "broad",
-    "targetng": "targeting",
-    "targting": "targeting",
-    "tarjeting": "targeting",
-    "metta": "meta",
-    "addz": "ads",
-    "adz": "ads",
-    "roaz": "roas",
-    "baxo": "baixo",
-    "diagnostiq": "diagnostico",
-}
 SOURCE_ID_PATTERN = re.compile(r"\bsrc-\d{4}-\d{4}\b", re.IGNORECASE)
 TIMECODE_PATTERN = re.compile(r"\b\d{2}:\d{2}:\d{2}\b")
 SEGMENT_NUMBER_PATTERN = re.compile(r"\bsegment\s+(\d+)\b")
@@ -160,12 +149,103 @@ def calibrated_raw_min_score(question: str, wiki_min_score: float) -> float:
     return max(wiki_min_score * 0.75, 0.4)
 
 
+def _raw_evidence_alignment_components(
+    *,
+    question: str,
+    query_tokens: list[str],
+    query_token_set: set[str],
+    evidence_intent: bool,
+    query_segment_number: str | None,
+    query_chunk_number: str | None,
+    query_has_transcript_intent: bool,
+    path: Path,
+    path_str: str,
+    normalized_body: str,
+    normalized_blob: str,
+) -> dict[str, float]:
+    components: dict[str, float] = {
+        "intent_base": 0.0,
+        "timecode_match": 0.0,
+        "source_id_match": 0.0,
+        "marker_overlap": 0.0,
+        "chunk_id_alignment": 0.0,
+        "chunk_number_alignment": 0.0,
+        "segment_number_alignment": 0.0,
+        "transcript_path_preference": 0.0,
+        "segment_local_chunk_preference": 0.0,
+        "generic_multi_segment_chunk_penalty": 0.0,
+    }
+    if evidence_intent:
+        components["intent_base"] += 0.5
+
+    is_chunk_doc = "/chunks/" in path_str
+    is_transcript_doc = "/transcript/" in path_str
+    chunk_id_present = "chunk_id" in normalized_body
+    segment_mentions = len(SEGMENT_NUMBER_PATTERN.findall(normalized_body))
+
+    if TIMECODE_PATTERN.search(question):
+        for match in TIMECODE_PATTERN.findall(question):
+            if normalize_text(match) in normalized_blob:
+                components["timecode_match"] += 0.8
+                break
+    if SOURCE_ID_PATTERN.search(question):
+        source_match = SOURCE_ID_PATTERN.search(question)
+        if source_match and normalize_text(source_match.group(0)) in normalized_blob:
+            components["source_id_match"] += 0.8
+
+    evidence_markers = {
+        token
+        for token in query_tokens
+        if token in {"chunk", "chunk_id", "segment", "transcript", "lesson", "timestamp", "start", "end"}
+    }
+    if evidence_markers:
+        marker_hits = sum(1 for token in evidence_markers if token in normalized_blob)
+        components["marker_overlap"] += min(0.6, marker_hits * 0.2)
+
+    if "chunk_id" in query_token_set:
+        if chunk_id_present:
+            components["chunk_id_alignment"] += 0.9
+        elif is_chunk_doc:
+            components["chunk_id_alignment"] -= 0.3
+    if query_chunk_number:
+        if path.stem.lstrip("0") == query_chunk_number:
+            components["chunk_number_alignment"] += 1.0
+        elif is_chunk_doc:
+            components["chunk_number_alignment"] -= 0.25
+
+    if query_segment_number:
+        if f"segment {query_segment_number}" in normalized_body:
+            components["segment_number_alignment"] += 0.9
+        elif segment_mentions > 0:
+            components["segment_number_alignment"] -= 0.25
+
+    if query_has_transcript_intent:
+        if is_transcript_doc:
+            components["transcript_path_preference"] += 1.1
+        elif is_chunk_doc:
+            components["transcript_path_preference"] -= 0.8
+
+    # Segment-local chunk preference is intentionally isolated in one component to
+    # keep segment-aware scoring explicit and auditable.
+    if query_segment_number and not query_has_transcript_intent:
+        if is_chunk_doc and f"segment {query_segment_number}" in normalized_body:
+            components["segment_local_chunk_preference"] += 0.7
+        if is_transcript_doc:
+            components["segment_local_chunk_preference"] -= 0.5
+    if query_segment_number and is_chunk_doc and segment_mentions > 1:
+        components["generic_multi_segment_chunk_penalty"] -= 0.6
+
+    return components
+
+
 def _score_documents(
     corpus_type: str,
     question: str,
     min_score: float,
     fuzzy: bool,
     include_navigation: bool = False,
+    use_aliases: bool = True,
+    alias_domain: str = "kb_marketing_ptbr_en",
     output_dir: Path | None = None,
 ) -> list[SearchHit]:
     index = _safe_load_or_build(corpus_type, output_dir=output_dir)
@@ -177,7 +257,13 @@ def _score_documents(
     evidence_intent = is_evidence_query(question)
     query_token_set = set(query_tokens)
     canonical_cues = query_token_set.intersection(CANONICAL_CUE_TERMS)
-    normalized_tokens = {TYPO_NORMALIZATION_MAP.get(token, token) for token in query_token_set}
+    alias_resolution = apply_scoped_aliases(
+        query_token_set,
+        corpus_type=corpus_type,
+        domain=alias_domain,
+        enable_aliases=use_aliases,
+    )
+    normalized_tokens = alias_resolution.normalized_tokens
     has_targeting_intent = bool(normalized_tokens.intersection({"broad", "targeting", "publico", "audience"}))
     has_diagnostic_intent = bool(
         normalized_tokens.intersection({"ctr", "cpm", "roas", "criativo", "oferta", "conversao", "diagnostico"})
@@ -304,52 +390,20 @@ def _score_documents(
                     normalize_text(json.dumps(doc.get("frontmatter", {}), ensure_ascii=False)),
                 ]
             )
-            if evidence_intent:
-                evidence_alignment_boost += 0.5
-            is_chunk_doc = "/chunks/" in path_str
-            is_transcript_doc = "/transcript/" in path_str
-            chunk_id_present = "chunk_id" in normalized_body
-            segment_mentions = len(SEGMENT_NUMBER_PATTERN.findall(normalized_body))
-            if TIMECODE_PATTERN.search(question):
-                for match in TIMECODE_PATTERN.findall(question):
-                    if normalize_text(match) in normalized_blob:
-                        evidence_alignment_boost += 0.8
-                        break
-            if SOURCE_ID_PATTERN.search(question):
-                source_match = SOURCE_ID_PATTERN.search(question)
-                if source_match and normalize_text(source_match.group(0)) in normalized_blob:
-                    evidence_alignment_boost += 0.8
-            evidence_markers = {
-                token
-                for token in query_tokens
-                if token in {"chunk", "chunk_id", "segment", "transcript", "lesson", "timestamp", "start", "end"}
-            }
-            if evidence_markers:
-                marker_hits = sum(1 for token in evidence_markers if token in normalized_blob)
-                evidence_alignment_boost += min(0.6, marker_hits * 0.2)
-            if "chunk_id" in query_token_set:
-                if chunk_id_present:
-                    evidence_alignment_boost += 0.9
-                elif is_chunk_doc:
-                    evidence_alignment_boost -= 0.3
-            if query_chunk_number:
-                if path.stem.lstrip("0") == query_chunk_number:
-                    evidence_alignment_boost += 1.0
-                elif is_chunk_doc:
-                    evidence_alignment_boost -= 0.25
-            if query_segment_number:
-                if f"segment {query_segment_number}" in normalized_body:
-                    evidence_alignment_boost += 0.9
-                elif segment_mentions > 0:
-                    evidence_alignment_boost -= 0.25
-            if query_has_transcript_intent:
-                if is_transcript_doc:
-                    evidence_alignment_boost += 1.1
-                elif is_chunk_doc:
-                    evidence_alignment_boost -= 0.8
-            if query_segment_number and is_chunk_doc and segment_mentions > 1:
-                # Generic chunk docs containing many segments should lose to specific matches.
-                evidence_alignment_boost -= 0.6
+            evidence_components = _raw_evidence_alignment_components(
+                question=question,
+                query_tokens=query_tokens,
+                query_token_set=query_token_set,
+                evidence_intent=evidence_intent,
+                query_segment_number=query_segment_number,
+                query_chunk_number=query_chunk_number,
+                query_has_transcript_intent=query_has_transcript_intent,
+                path=path,
+                path_str=path_str,
+                normalized_body=normalized_body,
+                normalized_blob=normalized_blob,
+            )
+            evidence_alignment_boost += sum(evidence_components.values())
         heuristic_fields["evidence_alignment_boost"] = float(evidence_alignment_boost)
 
         fuzzy_match_boost = 0.0
@@ -367,6 +421,8 @@ def _score_documents(
                 tactic_platform_intent_boost += 1.6
             elif page_type == "platform":
                 tactic_platform_intent_boost -= 0.4
+            if alias_resolution.changed_tokens:
+                tactic_platform_intent_boost += 0.3
         heuristic_fields["tactic_platform_intent_boost"] = float(tactic_platform_intent_boost)
 
         if corpus_type == "wiki" and path_str == "wiki/index.md":
@@ -429,6 +485,8 @@ def search_wiki(
     min_score: float = 0.8,
     fuzzy: bool = False,
     include_navigation: bool = False,
+    use_aliases: bool = True,
+    alias_domain: str = "kb_marketing_ptbr_en",
     output_dir: Path | None = None,
 ) -> list[SearchHit]:
     hits = _score_documents(
@@ -437,6 +495,8 @@ def search_wiki(
         min_score=min_score,
         fuzzy=fuzzy,
         include_navigation=include_navigation,
+        use_aliases=use_aliases,
+        alias_domain=alias_domain,
         output_dir=output_dir or INDEX_DIR,
     )
     return [hit for hit in hits if hit.accepted]
@@ -446,6 +506,8 @@ def search_raw_chunks(
     question: str,
     min_score: float = 0.6,
     fuzzy: bool = False,
+    use_aliases: bool = True,
+    alias_domain: str = "kb_marketing_ptbr_en",
     output_dir: Path | None = None,
 ) -> list[SearchHit]:
     hits = _score_documents(
@@ -454,6 +516,8 @@ def search_raw_chunks(
         min_score=min_score,
         fuzzy=fuzzy,
         include_navigation=True,
+        use_aliases=use_aliases,
+        alias_domain=alias_domain,
         output_dir=output_dir or INDEX_DIR,
     )
     return [hit for hit in hits if hit.accepted]

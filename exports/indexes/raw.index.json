@@ -1,11 +1,11 @@
 {
   "index_version": 2,
   "corpus_type": "raw",
-  "indexed_at": "2026-04-11T22:07:41Z",
+  "indexed_at": "2026-04-11T23:58:53Z",
   "documents": [
     {
       "path": "raw/sources/SRC-2026-0001-meta-ads-course/chunks/0001.md",
-      "mtime": 1775945191.3834703,
+      "mtime": 1775945871.6390305,
       "content_hash": "cc8e1f60c8083313acc5981a1be30823b5c7b321f318ec3c68bfeab4652d632f",
       "filename": "0001.md",
       "title": "0001",
@@ -33,7 +33,7 @@
     },
     {
       "path": "raw/sources/SRC-2026-0001-meta-ads-course/chunks/0002.md",
-      "mtime": 1775945191.3835366,
+      "mtime": 1775774679.9354827,
       "content_hash": "61451ce4fe71ddf5d3d073584ab199d19500410f3e9930f937292bdf17aa126c",
       "filename": "0002.md",
       "title": "0002",
@@ -58,7 +58,7 @@
     },
     {
       "path": "raw/sources/SRC-2026-0001-meta-ads-course/transcript/glossary-hints.txt",
-      "mtime": 1775945191.3835366,
+      "mtime": 1775773892.0,
       "content_hash": "32417e641f93cb3e42f468aa68174a20ddcfb86bb17c598646496b496722a036",
       "filename": "glossary-hints.txt",
       "title": "glossary-hints",
@@ -81,7 +81,7 @@
     },
     {
       "path": "raw/sources/SRC-2026-0001-meta-ads-course/transcript/lesson-01.md",
-      "mtime": 1775945191.3837192,
+      "mtime": 1775773892.0,
       "content_hash": "cc8e1f60c8083313acc5981a1be30823b5c7b321f318ec3c68bfeab4652d632f",
       "filename": "lesson-01.md",
       "title": "lesson-01",

@@ -61,8 +61,14 @@ def _load_dataset(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _run_single_query(question: str, fuzzy: bool) -> dict[str, Any]:
-    wiki_hits = search_wiki(question, min_score=0.8, fuzzy=fuzzy, include_navigation=False)
+def _run_single_query(question: str, fuzzy: bool, use_aliases: bool = True) -> dict[str, Any]:
+    wiki_hits = search_wiki(
+        question,
+        min_score=0.8,
+        fuzzy=fuzzy,
+        include_navigation=False,
+        use_aliases=use_aliases,
+    )
     if wiki_hits and not should_use_raw_fallback(question, wiki_hits):
         return {
             "consulted_layers": "wiki",
@@ -70,7 +76,12 @@ def _run_single_query(question: str, fuzzy: bool) -> dict[str, Any]:
             "raw_paths": [],
             "winner_trace": wiki_hits[0].explain_payload(),
         }
-    raw_hits = search_raw_chunks(question, min_score=calibrated_raw_min_score(question, 0.8), fuzzy=fuzzy)
+    raw_hits = search_raw_chunks(
+        question,
+        min_score=calibrated_raw_min_score(question, 0.8),
+        fuzzy=fuzzy,
+        use_aliases=use_aliases,
+    )
     if raw_hits:
         winner_trace = raw_hits[0].explain_payload()
         return {
@@ -169,6 +180,49 @@ def _final_correctness_policy(case: dict[str, Any]) -> str:
     if "fuzzy-enabled" in case.get("categories", []):
         return "fuzzy_enabled_prefers_fuzzy_on"
     return "fuzzy_off_primary"
+
+
+def _winner_path(result: dict[str, Any]) -> str | None:
+    paths = result["wiki_paths"] + result["raw_paths"]
+    return paths[0] if paths else None
+
+
+def _alias_influence(
+    baseline_no_fuzzy_no_alias: dict[str, Any],
+    alias_only: dict[str, Any],
+    fuzzy_only: dict[str, Any],
+    fuzzy_plus_alias: dict[str, Any],
+) -> dict[str, Any]:
+    baseline_winner = _winner_path(baseline_no_fuzzy_no_alias)
+    alias_winner = _winner_path(alias_only)
+    fuzzy_winner = _winner_path(fuzzy_only)
+    combined_winner = _winner_path(fuzzy_plus_alias)
+
+    alias_changed = alias_winner != baseline_winner
+    fuzzy_changed = fuzzy_winner != baseline_winner
+    combined_changed = combined_winner != baseline_winner
+
+    if combined_changed and not alias_changed and not fuzzy_changed:
+        primary = "combined_only"
+    elif alias_changed and fuzzy_changed:
+        if combined_changed and combined_winner != alias_winner and combined_winner != fuzzy_winner:
+            primary = "alias_plus_fuzzy_interaction"
+        else:
+            primary = "both_independently"
+    elif alias_changed and not fuzzy_changed:
+        primary = "alias_only"
+    elif fuzzy_changed and not alias_changed:
+        primary = "fuzzy_only"
+    else:
+        primary = "none"
+
+    return {
+        "primary_driver": primary,
+        "no_fuzzy_no_alias": baseline_winner,
+        "alias_only": alias_winner,
+        "fuzzy_only": fuzzy_winner,
+        "fuzzy_plus_alias": combined_winner,
+    }
 
 
 def _fuzzy_expectation_alignment(case: dict[str, Any], pass_off: bool, pass_on: bool) -> str:
@@ -297,12 +351,17 @@ def evaluate(dataset: dict[str, Any]) -> dict[str, Any]:
     metric_inputs: list[dict[str, Any]] = []
 
     for case in queries:
-        result_off = _run_single_query(case["query"], fuzzy=False)
-        result_on = _run_single_query(case["query"], fuzzy=True)
+        result_off = _run_single_query(case["query"], fuzzy=False, use_aliases=True)
+        result_on = _run_single_query(case["query"], fuzzy=True, use_aliases=True)
         pass_off = _criterion_pass(case, result_off)
         pass_on = _criterion_pass(case, result_on)
         failure_codes = _collect_failure_codes(case, result_off, result_on)
         fuzzy_influence = _fuzzy_influence(pass_off, pass_on)
+        alias_influence = None
+        if "fuzzy-enabled" in case.get("categories", []):
+            baseline_no_alias = _run_single_query(case["query"], fuzzy=False, use_aliases=False)
+            fuzzy_only = _run_single_query(case["query"], fuzzy=True, use_aliases=False)
+            alias_influence = _alias_influence(baseline_no_alias, result_off, fuzzy_only, result_on)
 
         metric_inputs.append({"case": case, "result_off": result_off, "result_on": result_on})
 
@@ -317,6 +376,7 @@ def evaluate(dataset: dict[str, Any]) -> dict[str, Any]:
                 "actual_fuzzy_on": _actual_object(result_on),
                 "fuzzy_influence": fuzzy_influence,
                 "fuzzy_expectation_alignment": _fuzzy_expectation_alignment(case, pass_off, pass_on),
+                "alias_influence": alias_influence,
                 "winner_trace": {
                     "fuzzy_off": result_off.get("winner_trace"),
                     "fuzzy_on": result_on.get("winner_trace"),

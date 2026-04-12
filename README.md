@@ -120,6 +120,7 @@ Ranking behavior:
 - fuzzy matching is default-off and can be enabled with `--fuzzy`
 - `--fuzzy-mode auto-on-zero` enables conservative fuzzy retry only when wiki accepted hits are zero
 - fuzzy expansion gates short/numeric tokens to reduce noisy expansions
+- typo aliases are applied via a small KB-scoped alias layer (not universal token normalization)
 
 Useful flags:
 
@@ -137,6 +138,7 @@ Additional retrieval hardening flags:
 - `--include-navigation` includes `retrieval_role: navigation` pages in accepted hits (off by default)
 - `--explain-ranking-format json` emits machine-readable explanation payloads
 - `--verbose-index-status` forces detailed per-file freshness inspection (otherwise query uses fast-path freshness checks)
+- `--disable-aliases` disables KB alias normalization for runtime ablation/debug checks
 
 Index trust signals:
 - query output includes `index_status[wiki]` / `index_status[raw]` with `indexed_at`
@@ -170,6 +172,7 @@ Evaluation notes:
 - metrics are emitted both globally and sliced by category labels
 - eval output includes per-query diagnostics (`expected`, `actual`, fallback behavior, fuzzy influence, winner trace) and compact worst-failures summaries with short reason codes
 - eval diagnostics also include `diagnostic_classification`, `final_correctness_policy_used`, and `fuzzy_expectation_alignment` to separate ranking misses from expectation mismatches
+- typo-sensitive diagnostics include `alias_influence` (`fuzzy_only`, `alias_only`, `fuzzy_plus_alias`) to show attribution
 - eval runner writes only under `exports/evals/` and does not mutate `wiki/`, `raw/`, or `staging/`
 
 ## Notes for agents

@@ -77,6 +77,7 @@ def main() -> None:
     parser.add_argument("--explain-ranking", action="store_true")
     parser.add_argument("--explain-ranking-format", choices=["text", "json"], default="text")
     parser.add_argument("--fuzzy", action="store_true")
+    parser.add_argument("--disable-aliases", action="store_true")
     parser.add_argument("--include-navigation", action="store_true")
     parser.add_argument("--verbose-index-status", action="store_true")
     parser.add_argument(
@@ -90,11 +91,13 @@ def main() -> None:
     _print_index_status(wiki_index)
 
     use_fuzzy = args.fuzzy or args.fuzzy_mode == "explicit"
+    use_aliases = not args.disable_aliases
     wiki_hits = search_wiki(
         args.question,
         min_score=args.min_score,
         fuzzy=use_fuzzy,
         include_navigation=args.include_navigation,
+        use_aliases=use_aliases,
     )
     if not wiki_hits and args.fuzzy_mode == "auto-on-zero":
         wiki_hits = search_wiki(
@@ -102,6 +105,7 @@ def main() -> None:
             min_score=args.min_score,
             fuzzy=True,
             include_navigation=args.include_navigation,
+            use_aliases=use_aliases,
         )
 
     if wiki_hits and not should_use_raw_fallback(args.question, wiki_hits):
@@ -127,6 +131,7 @@ def main() -> None:
         args.question,
         min_score=calibrated_raw_min_score(args.question, args.min_score),
         fuzzy=use_fuzzy or args.fuzzy_mode == "auto-on-zero",
+        use_aliases=use_aliases,
     )
     print("consulted_layers: wiki+raw")
     if not raw_hits:
