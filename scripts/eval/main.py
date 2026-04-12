@@ -17,6 +17,14 @@ from scripts.lib.querying import (
     should_use_raw_fallback,
 )
 from scripts.lib.retrieval_curation import CONFIDENCE_MODEL_CONSTANTS
+from scripts.lib.reviewer_outcomes import (
+    NORMALIZED_REVIEW_OUTCOMES,
+    REVIEW_OUTCOME_NORMALIZATION_MAP,
+    classify_dataset_provenance,
+    normalize_dataset_provenance,
+    normalize_provenance,
+    normalize_reviewer_outcome,
+)
 
 SUPPORTED_CATEGORIES = (
     "wiki-only",
@@ -26,21 +34,6 @@ SUPPORTED_CATEGORIES = (
     "mixed-ptbr-en",
 )
 _SUPPORTED_CATEGORIES_SET = frozenset(SUPPORTED_CATEGORIES)
-NORMALIZED_REVIEW_OUTCOMES = ("approve", "approve_with_edits", "reject")
-REVIEW_OUTCOME_NORMALIZATION_MAP = {
-    "approve": "approve",
-    "approved": "approve",
-    "approved_clean": "approve",
-    "accept": "approve",
-    "approve_with_edits": "approve_with_edits",
-    "approved_with_edits": "approve_with_edits",
-    "approved-edits": "approve_with_edits",
-    "request_edits": "approve_with_edits",
-    "revise": "approve_with_edits",
-    "reject": "reject",
-    "rejected": "reject",
-    "decline": "reject",
-}
 REVIEW_ACTION_SCRUTINY = {
     "quick-approve": 0,
     "normal-review": 1,
@@ -55,6 +48,11 @@ MATERIAL_MISMATCH_THRESHOLDS = {
     "action_alignment_rate_min": 0.75,
     "optimistic_miss_rate_max": 0.20,
     "conservative_miss_rate_max": 0.35,
+}
+CALIBRATION_READINESS_THRESHOLDS = {
+    "real_outcomes_min": 30,
+    "distinct_reviews_min": 10,
+    "per_outcome_class_min": 8,
 }
 
 
@@ -129,13 +127,6 @@ def _run_single_query(question: str, fuzzy: bool, use_aliases: bool = True) -> d
     }
 
 
-def _normalize_reviewer_outcome(raw_value: Any) -> str | None:
-    if not isinstance(raw_value, str):
-        return None
-    token = raw_value.strip().lower().replace(" ", "_")
-    return REVIEW_OUTCOME_NORMALIZATION_MAP.get(token)
-
-
 def _action_alignment(predicted_action: str, normalized_outcome: str) -> dict[str, Any]:
     predicted_level = REVIEW_ACTION_SCRUTINY.get(predicted_action)
     outcome_level = REVIEW_OUTCOME_REQUIRED_SCRUTINY.get(normalized_outcome)
@@ -149,6 +140,39 @@ def _action_alignment(predicted_action: str, normalized_outcome: str) -> dict[st
 
 
 def _load_reviewer_outcomes(path: Path) -> dict[str, Any]:
+    if path.suffix == ".jsonl":
+        lines = path.read_text(encoding="utf-8").splitlines()
+        outcomes: list[dict[str, Any]] = []
+        provenance_values: list[str] = []
+        updated_at = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        for index, line in enumerate(lines, start=1):
+            if not line.strip():
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise SystemExit(f"reviewer outcomes jsonl line {index} invalid: {exc}") from exc
+            if not isinstance(payload, dict):
+                raise SystemExit(f"reviewer outcomes jsonl line {index} must be an object")
+            row_provenance = normalize_provenance(payload.get("provenance")) or "real"
+            payload["provenance"] = row_provenance
+            provenance_values.append(row_provenance)
+            row_updated = payload.get("recorded_at")
+            if isinstance(row_updated, str) and row_updated:
+                updated_at = max(updated_at, row_updated)
+            outcomes.append(payload)
+        dataset_origin = classify_dataset_provenance(provenance_values)
+        return {
+            "metadata": {
+                "dataset_version": "v1",
+                "dataset_scope": "staging-reviewer-outcomes",
+                "updated_at": updated_at,
+                "dataset_origin": dataset_origin,
+                "notes": "Append-only local reviewer outcome capture dataset.",
+            },
+            "outcomes": outcomes,
+        }
+
     payload = json.loads(path.read_text(encoding="utf-8"))
     metadata = payload.get("metadata", {})
     if not isinstance(metadata, dict):
@@ -194,13 +218,21 @@ def _band_reliability(entries: list[dict[str, Any]]) -> dict[str, Any]:
 def _build_calibration_report(reviewer_outcomes: dict[str, Any]) -> dict[str, Any]:
     entries: list[dict[str, Any]] = []
     unknown_outcome_count = 0
+    provenance_counts = {"synthetic": 0, "real": 0}
+    class_counts = {"approve": 0, "approve_with_edits": 0, "reject": 0}
     for outcome in reviewer_outcomes["outcomes"]:
         if not isinstance(outcome, dict):
             continue
-        normalized = _normalize_reviewer_outcome(outcome.get("actual_reviewer_decision"))
+        normalized = normalize_reviewer_outcome(outcome.get("actual_reviewer_decision"))
         if normalized is None:
             unknown_outcome_count += 1
             continue
+        provenance = normalize_provenance(outcome.get("provenance"))
+        if provenance is None:
+            metadata_origin = normalize_dataset_provenance(reviewer_outcomes.get("metadata", {}).get("dataset_origin"))
+            provenance = metadata_origin or "real"
+        provenance_counts[provenance] = provenance_counts.get(provenance, 0) + 1
+        class_counts[normalized] += 1
         predicted_action = str(outcome.get("predicted_review_action", ""))
         predicted_band = str(outcome.get("predicted_confidence_band", ""))
         alignment = _action_alignment(predicted_action, normalized)
@@ -214,6 +246,7 @@ def _build_calibration_report(reviewer_outcomes: dict[str, Any]) -> dict[str, An
                 "predicted_review_action": predicted_action,
                 "actual_reviewer_decision": outcome.get("actual_reviewer_decision"),
                 "normalized_outcome": normalized,
+                "provenance": provenance,
                 "alignment": alignment,
             }
         )
@@ -236,122 +269,47 @@ def _build_calibration_report(reviewer_outcomes: dict[str, Any]) -> dict[str, An
     }
     gate["material_mismatch_triggered"] = any(gate["triggered_checks"].values())
 
-    def _band_from_score(score: float, thresholds: dict[str, float]) -> str:
-        if score >= thresholds["high_min"]:
-            return "high"
-        if score >= thresholds["medium_min"]:
-            return "medium"
-        return "low"
+    present_provenances = [key for key, count in provenance_counts.items() if count > 0]
+    if len(present_provenances) > 1:
+        dataset_provenance = "mixed"
+    elif len(present_provenances) == 1:
+        dataset_provenance = present_provenances[0]
+    else:
+        dataset_provenance = "unknown"
 
-    def _action_from_band(band: str) -> str:
-        if band == "high":
-            return "quick-approve"
-        if band == "medium":
-            return "normal-review"
-        return "deep-review"
-
-    def _alignment_summary(items: list[dict[str, Any]]) -> dict[str, Any]:
-        item_total = len(items)
-        item_aligned = sum(1 for item in items if item["alignment"]["aligned"])
-        item_optimistic = sum(1 for item in items if item["alignment"]["direction"] == "optimistic")
-        item_conservative = sum(1 for item in items if item["alignment"]["direction"] == "conservative")
-        return {
-            "aligned_count": item_aligned,
-            "total": item_total,
-            "rate": round((item_aligned / item_total), 6) if item_total else 0.0,
-            "optimistic_count": item_optimistic,
-            "optimistic_rate": round((item_optimistic / item_total), 6) if item_total else 0.0,
-            "conservative_count": item_conservative,
-            "conservative_rate": round((item_conservative / item_total), 6) if item_total else 0.0,
-        }
+    real_entries = [entry for entry in entries if entry.get("provenance") == "real"]
+    real_outcome_counts = {
+        "approve": sum(1 for item in real_entries if item["normalized_outcome"] == "approve"),
+        "approve_with_edits": sum(1 for item in real_entries if item["normalized_outcome"] == "approve_with_edits"),
+        "reject": sum(1 for item in real_entries if item["normalized_outcome"] == "reject"),
+    }
+    real_distinct_reviews = len({str(item.get("review_id", "")) for item in real_entries if str(item.get("review_id", ""))})
+    readiness = {
+        "thresholds": CALIBRATION_READINESS_THRESHOLDS,
+        "checks": {
+            "real_outcomes_min_met": len(real_entries) >= CALIBRATION_READINESS_THRESHOLDS["real_outcomes_min"],
+            "distinct_reviews_min_met": real_distinct_reviews >= CALIBRATION_READINESS_THRESHOLDS["distinct_reviews_min"],
+            "approve_class_balance_met": real_outcome_counts["approve"] >= CALIBRATION_READINESS_THRESHOLDS["per_outcome_class_min"],
+            "approve_with_edits_class_balance_met": real_outcome_counts["approve_with_edits"]
+            >= CALIBRATION_READINESS_THRESHOLDS["per_outcome_class_min"],
+            "reject_class_balance_met": real_outcome_counts["reject"] >= CALIBRATION_READINESS_THRESHOLDS["per_outcome_class_min"],
+        },
+        "real_outcomes_count": len(real_entries),
+        "distinct_review_count": real_distinct_reviews,
+    }
+    readiness["tuning_ready"] = all(readiness["checks"].values())
 
     tuning: dict[str, Any] = {
         "performed": False,
-        "reason": "report_only_pass",
+        "automatic_tuning_enabled": False,
+        "tuning_allowed": bool(readiness["tuning_ready"]),
+        "reason": "phase4e_no_automatic_tuning",
         "constants_changed": {},
     }
-    dataset_origin = str(reviewer_outcomes["metadata"].get("dataset_origin", "")).strip().lower()
-    if gate["material_mismatch_triggered"]:
-        if dataset_origin == "synthetic":
-            tuning = {
-                "performed": False,
-                "reason": "mismatch_detected_but_synthetic_dataset_not_tuned",
-                "constants_changed": {},
-            }
-        else:
-            current_thresholds = CONFIDENCE_MODEL_CONSTANTS["band_thresholds"]
-            candidates = []
-            for high_min in (0.70, 0.75, 0.80, 0.85):
-                for medium_min in (0.40, 0.45, 0.50, 0.55, 0.60):
-                    if medium_min >= high_min:
-                        continue
-                    recalculated: list[dict[str, Any]] = []
-                    for item in entries:
-                        score = item.get("predicted_confidence_score")
-                        if not isinstance(score, (int, float)):
-                            continue
-                        band = _band_from_score(float(score), {"high_min": high_min, "medium_min": medium_min})
-                        action = _action_from_band(band)
-                        alignment = _action_alignment(action, str(item["normalized_outcome"]))
-                        recalculated.append(
-                            {
-                                "alignment": alignment,
-                            }
-                        )
-                    summary = _alignment_summary(recalculated)
-                    candidates.append(
-                        {
-                            "high_min": high_min,
-                            "medium_min": medium_min,
-                            "summary": summary,
-                        }
-                    )
-            candidates.sort(
-                key=lambda item: (
-                    -item["summary"]["rate"],
-                    item["summary"]["optimistic_rate"],
-                    item["summary"]["conservative_rate"],
-                )
-            )
-            best = candidates[0] if candidates else None
-            if best is not None and (
-                best["summary"]["rate"] > action_alignment_rate
-                or best["summary"]["optimistic_rate"] < optimistic_rate
-                or best["summary"]["conservative_rate"] < conservative_rate
-            ):
-                tuning = {
-                    "performed": True,
-                    "reason": "mismatch_detected_and_threshold_tuning_applied",
-                    "constants_changed": {
-                        "band_thresholds.high_min": {
-                            "old": current_thresholds["high_min"],
-                            "new": best["high_min"],
-                        },
-                        "band_thresholds.medium_min": {
-                            "old": current_thresholds["medium_min"],
-                            "new": best["medium_min"],
-                        },
-                    },
-                    "before_metrics": {
-                        "action_alignment_rate": action_alignment_rate,
-                        "optimistic_miss_rate": optimistic_rate,
-                        "conservative_miss_rate": conservative_rate,
-                    },
-                    "after_metrics": {
-                        "action_alignment_rate": best["summary"]["rate"],
-                        "optimistic_miss_rate": best["summary"]["optimistic_rate"],
-                        "conservative_miss_rate": best["summary"]["conservative_rate"],
-                    },
-                }
-            else:
-                tuning = {
-                    "performed": False,
-                    "reason": "mismatch_detected_no_better_threshold_candidate",
-                    "constants_changed": {},
-                }
 
     return {
         "dataset_metadata": reviewer_outcomes["metadata"],
+        "dataset_provenance": dataset_provenance,
         "confidence_model_constants": CONFIDENCE_MODEL_CONSTANTS,
         "normalization": {
             "allowed_normalized_outcomes": list(NORMALIZED_REVIEW_OUTCOMES),
@@ -381,8 +339,16 @@ def _build_calibration_report(reviewer_outcomes: dict[str, Any]) -> dict[str, An
                 "rate": conservative_rate,
             },
             "band_reliability": _band_reliability(entries),
+            "class_balance": {
+                "counts": class_counts,
+                "rates": {
+                    outcome: round((class_counts[outcome] / total), 6) if total else 0.0
+                    for outcome in ("approve", "approve_with_edits", "reject")
+                },
+            },
         },
         "material_mismatch_gate": gate,
+        "readiness": readiness,
         "tuning": tuning,
         "entries": entries,
     }
@@ -737,7 +703,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--reviewer-outcomes",
-        default="tests/fixtures/reviewer_outcomes/synthetic_outcomes.json",
+        default="staging/reviewer-outcomes/outcomes.jsonl",
         help="Path to reviewer outcome dataset for confidence calibration.",
     )
     args = parser.parse_args()
@@ -750,6 +716,8 @@ def main() -> None:
     dataset_path = (ROOT / args.dataset).resolve()
     dataset = _load_dataset(dataset_path)
     outcomes_path = (ROOT / args.reviewer_outcomes).resolve()
+    if not outcomes_path.exists():
+        outcomes_path = (ROOT / "tests" / "fixtures" / "reviewer_outcomes" / "synthetic_outcomes.json").resolve()
     outcomes_payload = _load_reviewer_outcomes(outcomes_path)
     report = evaluate(dataset, calibration_payload=outcomes_payload)
 
