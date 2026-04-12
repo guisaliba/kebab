@@ -14,6 +14,10 @@
 - `target_proposed_path` must point to `staging/reviews/REV-.../proposed/wiki/...`; `intended_wiki_path` is informational and must point under `wiki/...`.
 - Every evidence bundle (`retrieval-assist/evidence/EV-*.yaml`) must include structured grounding (`normalized_citations`, `source_ids`, citation format version) plus winner/supporting hit source markers and citations.
 - `winner` and every `supporting_hits` entry must include concrete `score` and `explain_payload` from retrieval scoring.
+- `supporting_hits` must exclude `winner`; if no meaningful secondary support exists, emit fewer supporting hits instead of repeating winner-equivalent evidence.
+- Distinct supporting selection order is explicit: prefer different `path`, then different `page_type`, then different source/citation context.
 - `why_suggested` must be specific and grounded in existing review package claims (`claim-ledger.jsonl`) plus citation spans when available.
 - Citation parsing is conservative: malformed/partial `[Sources: ...]` segments are ignored, never auto-filled.
+- `quality_flags` allowed values for this phase: `weak_linked_claim_coverage`, `low_citation_coverage`, `single_supporting_context`, `duplicated_evidence_unavoidable`.
+- Weak-case rationale must stay strictly grounded to linked claims, retrieved hits, and present citation spans only.
 - Reruns fail by default if retrieval-assist artifacts already exist; rerun with `--overwrite` to replace and update `generated_at`.

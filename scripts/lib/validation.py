@@ -34,6 +34,12 @@ REQUIRED_REVIEW_FILES = {
 }
 REQUIRED_RETRIEVAL_ASSIST_FILES = {"manifest.yaml", "proposals.jsonl", "reviewer-summary.md"}
 ALLOWED_RETRIEVAL_CHANGE_TYPES = {"append_section", "update_section", "new_note_link", "conflict_flag"}
+ALLOWED_RETRIEVAL_QUALITY_FLAGS = {
+    "weak_linked_claim_coverage",
+    "low_citation_coverage",
+    "single_supporting_context",
+    "duplicated_evidence_unavoidable",
+}
 
 
 def load_yaml(path: Path) -> dict[str, Any]:
@@ -444,10 +450,14 @@ def validate_retrieval_assist_artifacts(review_dir: Path) -> list[str]:
             if not isinstance(supporting_hits, list):
                 errors.append(f"{evidence_path}: supporting_hits must be a list")
             else:
+                winner_path = winner.get("path") if isinstance(winner, dict) else None
                 for hit_idx, hit in enumerate(supporting_hits, start=1):
                     if not isinstance(hit, dict):
                         errors.append(f"{evidence_path}: supporting_hits[{hit_idx}] must be an object")
                         continue
+                    supporting_path = hit.get("path")
+                    if isinstance(winner_path, str) and isinstance(supporting_path, str) and supporting_path == winner_path:
+                        errors.append(f"{evidence_path}: supporting_hits[{hit_idx}] must exclude winner path")
                     hit_score = hit.get("score")
                     if not isinstance(hit_score, (int, float)):
                         errors.append(f"{evidence_path}: supporting_hits[{hit_idx}].score must be numeric")
@@ -455,9 +465,31 @@ def validate_retrieval_assist_artifacts(review_dir: Path) -> list[str]:
                     if not isinstance(hit_explain, dict):
                         errors.append(f"{evidence_path}: supporting_hits[{hit_idx}].explain_payload must be an object")
 
+            quality_flags = evidence.get("quality_flags")
+            if not isinstance(quality_flags, list):
+                errors.append(f"{evidence_path}: quality_flags must be a list")
+            else:
+                for flag_idx, flag in enumerate(quality_flags, start=1):
+                    if flag not in ALLOWED_RETRIEVAL_QUALITY_FLAGS:
+                        errors.append(f"{evidence_path}: quality_flags[{flag_idx}] invalid value {flag}")
+
+            selection_policy = evidence.get("selection_policy")
+            if not isinstance(selection_policy, dict):
+                errors.append(f"{evidence_path}: selection_policy must be an object")
+            else:
+                max_supporting_hits = selection_policy.get("max_supporting_hits")
+                if not isinstance(max_supporting_hits, int) or max_supporting_hits < 0:
+                    errors.append(f"{evidence_path}: selection_policy.max_supporting_hits must be a non-negative integer")
+                distinctness_rules = selection_policy.get("distinctness_rules")
+                if not isinstance(distinctness_rules, list) or not all(isinstance(rule, str) for rule in distinctness_rules):
+                    errors.append(f"{evidence_path}: selection_policy.distinctness_rules must be a list of strings")
+
             why_suggested = evidence.get("why_suggested")
             if not isinstance(why_suggested, str) or not why_suggested.strip():
                 errors.append(f"{evidence_path}: why_suggested must be a non-empty string")
+            if isinstance(quality_flags, list) and "weak_linked_claim_coverage" in quality_flags:
+                if "No linked claims found in claim-ledger.jsonl" not in why_suggested:
+                    errors.append(f"{evidence_path}: weak_linked_claim_coverage requires explicit linked-claim absence in why_suggested")
 
             rationale_claim_ids = evidence.get("rationale_claim_ids")
             if not isinstance(rationale_claim_ids, list):
@@ -469,6 +501,9 @@ def validate_retrieval_assist_artifacts(review_dir: Path) -> list[str]:
                         continue
                     if claim_ids and claim_id not in claim_ids:
                         errors.append(f"{evidence_path}: rationale_claim_ids[{claim_idx}] not found in claim-ledger.jsonl")
+            if isinstance(rationale_claim_ids, list) and not rationale_claim_ids:
+                if "No linked claims found in claim-ledger.jsonl" not in why_suggested:
+                    errors.append(f"{evidence_path}: empty rationale_claim_ids must be reflected in why_suggested")
 
     if manifest_proposal_count is not None and manifest_proposal_count != parsed_proposal_count:
         errors.append(

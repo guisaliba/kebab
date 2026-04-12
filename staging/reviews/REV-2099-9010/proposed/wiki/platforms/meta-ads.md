@@ -5,7 +5,7 @@ type: platform
 status: active
 language: pt-BR
 created_at: '2026-04-09T00:00:00Z'
-updated_at: '2026-04-12T16:49:21Z'
+updated_at: '2026-04-12T19:36:52Z'
 review_status: proposed
 confidence: medium
 sources:
