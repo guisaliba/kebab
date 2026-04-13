@@ -65,12 +65,21 @@ python scripts/ingest/main.py \
   --chunk-unit chars
 ```
 
+Flags:
+
+- `--skip-adapters` — do not run ffmpeg/PDF/OCR preparation; require `transcript/*.md` or `extracted/*.txt` already present (legacy behavior).
+- `--no-check-tools` — skip local tool availability checks before invoking ffmpeg (binary must still exist).
+
 Behavior:
 
-- chunk input precedence is `transcript/*.md` then `extracted/*.txt`
-- ingest fails clearly when neither exists
+- **Phase 5 adapters** run first when not skipped: infer or follow `ingestion.adapter` in `manifest.yaml` to prepare normalized artifacts (`extracted/*.wav`, `extracted/*.txt` from PDF/OCR, etc.). If `transcript/*.md` or `extracted/*.txt` already exists, adapters are skipped and that text is used.
+- chunk input precedence remains `transcript/*.md` then `extracted/*.txt`
+- video/audio-only runs may extract WAV but still **fail** until you add transcript or extracted text (transcription execution is deferred; see `schema/ingestion-rules.md`).
+- ingest fails clearly when neither transcript nor extracted text exists for chunking
 - ingest updates `raw/registry.yaml` and writes review package to `staging/reviews/REV-*/`
 - ingest never writes to `wiki/`
+
+Prerequisites (optional, by source type): `ffmpeg` (audio), `pypdf` (installed via `requirements.txt` for PDF text), `tesseract` / `pdftoppm` (OCR and scanned-PDF fallback). See `schema/ingestion-rules.md` and `docs/reset-before-real-ingestion.md`.
 
 ### Review
 

@@ -127,11 +127,54 @@ def validate_wiki_markdown_file(path: Path) -> list[str]:
     return errors
 
 
+ALLOWED_INGESTION_ADAPTERS = frozenset({"auto", "text", "audio", "pdf", "ocr"})
+
+
 def validate_manifest_source(manifest: dict[str, Any], manifest_path: Path) -> list[str]:
     errors: list[str] = []
     source_id = manifest.get("source_id")
     if not isinstance(source_id, str) or not validate_source_id(source_id):
         errors.append(f"{manifest_path}: invalid source_id")
+
+    ing = manifest.get("ingestion")
+    if ing is not None:
+        if not isinstance(ing, dict):
+            errors.append(f"{manifest_path}: ingestion must be a mapping when present")
+        else:
+            adapter = ing.get("adapter")
+            if adapter is not None:
+                if not isinstance(adapter, str):
+                    errors.append(f"{manifest_path}: ingestion.adapter must be a string")
+                elif adapter.strip().lower() not in ALLOWED_INGESTION_ADAPTERS:
+                    errors.append(
+                        f"{manifest_path}: ingestion.adapter must be one of {sorted(ALLOWED_INGESTION_ADAPTERS)}"
+                    )
+            if ing.get("use_ocr") is not None and not isinstance(ing.get("use_ocr"), bool):
+                errors.append(f"{manifest_path}: ingestion.use_ocr must be boolean when present")
+            lang = ing.get("tesseract_lang")
+            if lang is not None and not isinstance(lang, str):
+                errors.append(f"{manifest_path}: ingestion.tesseract_lang must be a string when present")
+
+    files = manifest.get("files")
+    if files is not None:
+        if not isinstance(files, dict):
+            errors.append(f"{manifest_path}: files must be a mapping when present")
+        else:
+            originals = files.get("originals")
+            if originals is not None:
+                if not isinstance(originals, list):
+                    errors.append(f"{manifest_path}: files.originals must be a list when present")
+                else:
+                    for idx, item in enumerate(originals):
+                        if not isinstance(item, str) or not item.strip():
+                            errors.append(f"{manifest_path}: files.originals[{idx}] must be a non-empty string")
+                        elif Path(item).is_absolute():
+                            errors.append(f"{manifest_path}: files.originals[{idx}] must be relative to the source dir")
+                        elif ".." in Path(item).parts:
+                            errors.append(
+                                f"{manifest_path}: files.originals[{idx}] must not contain parent directory traversal"
+                            )
+
     return errors
 
 
