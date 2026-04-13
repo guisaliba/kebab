@@ -309,11 +309,9 @@ def batch_capture_outcomes(*, review_ids: list[str] | None, dataset_path: Path) 
             proposal_id = str(proposal.get("proposal_id", ""))
             if not proposal_id:
                 continue
-            decision_source = "review"
             actual_decision = status or ""
             notes = f"batch-capture from review decision status: {actual_decision}" if actual_decision else ""
             if proposal_id in sidecar_decisions:
-                decision_source = "proposal-sidecar"
                 actual_decision = sidecar_decisions[proposal_id]["decision"]
                 notes = f"batch-capture from proposal sidecar decision: {actual_decision}"
                 if review_level_decision is not None and decision_status_to_outcome(actual_decision) != review_level_decision:
@@ -345,7 +343,7 @@ def batch_capture_outcomes(*, review_ids: list[str] | None, dataset_path: Path) 
         messages.append(
             f"- {review_id}: captured={review_captured}, skipped_duplicates={review_duplicates}, "
             f"skipped_pending={review_skipped_pending}, proposal_overrides={sidecar_overrides}, "
-            f"fallback_review_status={fallback_summary}"
+            f"fallback_review_outcome={fallback_summary}"
         )
 
     return {

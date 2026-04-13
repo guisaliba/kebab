@@ -264,7 +264,7 @@ def validate_proposal_decisions_sidecar(review_dir: Path) -> list[str]:
         try:
             proposal = json.loads(line)
         except json.JSONDecodeError as exc:
-            errors.append(f"{proposals_path}:{index}: invalid JSON: {exc}")
+            errors.append(f"{proposals_path}:{index}: invalid JSONL: {exc}")
             continue
         proposal_id = proposal.get("proposal_id")
         if isinstance(proposal_id, str) and proposal_id:
