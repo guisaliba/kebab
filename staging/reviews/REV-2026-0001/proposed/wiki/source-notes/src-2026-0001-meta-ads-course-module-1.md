@@ -17,10 +17,12 @@ topics:
 # Source Note — SRC-2026-0001
 
 ## Main takeaways
+
 - ROAS é insuficiente como métrica isolada de diagnóstico.
 - CTR baixo com CPM aceitável pode apontar para fraqueza criativa.
 - Broad targeting pode ser útil em contextos de alta velocidade de teste criativo e oferta forte.
 
 ## Linked pages
+
 - `/wiki/platforms/meta-ads.md`
 - `/wiki/tactics/broad-targeting.md`

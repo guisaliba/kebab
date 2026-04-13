@@ -18,6 +18,11 @@ REVIEW_OUTCOME_NORMALIZATION_MAP = {
     "decline": "reject",
 }
 ALLOWED_DATASET_PROVENANCE = {"synthetic", "real", "mixed"}
+REVIEW_DECISION_TO_OUTCOME = {
+    "approved": "approve",
+    "approved_with_edits": "approve_with_edits",
+    "rejected": "reject",
+}
 
 
 def normalize_reviewer_outcome(raw_value: Any) -> str | None:
@@ -56,3 +61,18 @@ def classify_dataset_provenance(values: list[str]) -> str:
     if normalized == {"real"}:
         return "real"
     return "mixed"
+
+
+def decision_status_to_outcome(raw_value: Any) -> str | None:
+    if not isinstance(raw_value, str):
+        return None
+    token = raw_value.strip().lower().replace(" ", "_")
+    return REVIEW_DECISION_TO_OUTCOME.get(token)
+
+
+def extract_decision_status(markdown_text: str) -> str | None:
+    for line in markdown_text.splitlines():
+        if line.startswith("Status:"):
+            value = line.split(":", 1)[1].strip()
+            return value or None
+    return None

@@ -42,5 +42,6 @@ def test_eval_runner_outputs_required_metrics() -> None:
     assert "band_reliability" in calibration["metrics"]
     assert "class_balance" in calibration["metrics"]
     assert "readiness" in calibration
+    assert "readiness_gaps" in calibration["readiness"]
     assert calibration["tuning"]["performed"] is False
     assert calibration["tuning"]["automatic_tuning_enabled"] is False

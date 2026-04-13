@@ -1,8 +1,8 @@
 review_id: REV-2026-0003
 source_id: SRC-2026-0001
-package_status: pending
+package_status: approved
 created_at: '2026-04-11T06:33:40Z'
-updated_at: '2026-04-11T06:33:40Z'
+updated_at: '2026-04-12T23:46:29Z'
 proposed_paths:
 - staging/reviews/REV-2026-0003/proposed/wiki/source-notes/meta-ads-course-module-1.md
 - staging/reviews/REV-2026-0003/proposed/wiki/platforms/meta-ads.md

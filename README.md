@@ -212,10 +212,28 @@ Append a real reviewer outcome (local, append-only):
 python scripts/outcomes/main.py append --review-id REV-2026-0002 --proposal-id PRP-0001 --actual-decision approved_with_edits
 ```
 
+Batch-capture outcomes from review decisions:
+
+```bash
+python scripts/outcomes/main.py batch-capture
+```
+
+Limit batch capture to specific reviews:
+
+```bash
+python scripts/outcomes/main.py batch-capture --review-id REV-2026-0002 --review-id REV-2026-0003
+```
+
 Validate local captured outcomes:
 
 ```bash
 python scripts/outcomes/main.py validate
+```
+
+Inspect current dataset readiness without full eval:
+
+```bash
+python scripts/outcomes/main.py status
 ```
 
 Evaluation notes:
@@ -245,6 +263,10 @@ Evaluation notes:
 - 4E capture is append-only and rejects duplicate keys (`review_id`, `proposal_id`, `evidence_bundle_id`)
 - calibration report includes dataset provenance (`synthetic|real|mixed`) and normalized outcome class-balance metrics
 - 4E keeps automatic tuning disabled; report output is calibration-readiness only
+- batch capture reads `staging/reviews/REV-*/decision.md` status plus `retrieval-assist/proposals.jsonl`
+- decision mapping for batch capture is: `approved -> approve`, `approved_with_edits -> approve_with_edits`, `rejected -> reject`, `pending -> skip`
+- batch capture skips duplicates and reviews without retrieval-assist instead of failing the whole run
+- readiness reporting now includes machine-readable `readiness_gaps` in eval JSON and human-readable remaining-needed counts in `scripts/outcomes/main.py status`
 
 ### Retrieval Normalization Policy
 

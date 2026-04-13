@@ -38,3 +38,7 @@
 - Calibration report must include dataset provenance classification: `synthetic`, `real`, or `mixed`.
 - Calibration readiness must include class-balance visibility across normalized outcomes (`approve`, `approve_with_edits`, `reject`), not only total counts.
 - 4E keeps automatic tuning disabled even when mismatch exists; calibration is readiness-oriented until real outcome coverage is sufficient.
+- 4F batch capture may scan `staging/reviews/REV-*`, read `decision.md` `Status:` value, and map review-level outcomes to every proposal in `retrieval-assist/proposals.jsonl`.
+- Batch capture decision mapping is fixed: `approved -> approve`, `approved_with_edits -> approve_with_edits`, `rejected -> reject`, `pending -> skip`.
+- Batch capture must skip duplicate proposal outcomes and skip reviews lacking retrieval-assist artifacts instead of failing the whole command.
+- Readiness reporting must surface both boolean checks and explicit remaining-needed counts for unmet gates.

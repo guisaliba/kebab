@@ -1,0 +1,85 @@
+evidence_bundle_id: EV-0003
+proposal_id: PRP-0003
+question_or_intent: src-2026-0001-meta-ads-course-module-1 ---
+retrieval_context:
+  consulted_layers: wiki+raw
+  fuzzy_enabled: false
+  aliases_enabled: true
+  alias_influence_class: none
+grounding:
+  normalized_citations: []
+  source_ids: []
+  citation_format_version: v1
+winner:
+  path: raw/sources/SRC-2026-0001-meta-ads-course/chunks/0002.md
+  snippet: '---'
+  source_markers: []
+  citations: []
+  score: 2.576494
+  explain_payload:
+    path: raw/sources/SRC-2026-0001-meta-ads-course/chunks/0002.md
+    accepted: true
+    final_score: 2.576494
+    bm25_total: 1.676494
+    bm25_fields:
+      title: 0.0
+      headings: 0.0
+      filename: 0.0
+      frontmatter: 0.0
+      body: 1.676494
+    heuristic_fields:
+      phrase_boost: 0.0
+      page_type_boost: 0.0
+      confidence_boost: 0.0
+      citation_boost: 0.0
+      role_adjustment: 0.1
+      canonical_precedence_boost: 0.0
+      evidence_alignment_boost: 0.8
+      fuzzy_match_boost: 0.0
+      tactic_platform_intent_boost: 0.0
+      index_page_penalty: 0.0
+    acceptance_reasons:
+    - score_meets_threshold
+    - lexical_overlap_present
+    - retrieval_role_auxiliary
+    rejection_reasons: []
+    metadata:
+      accepted: true
+      corpus_type: raw
+      page_type: raw-chunk
+      confidence: ''
+      citations_present: false
+      retrieval_role: auxiliary
+supporting_hits: []
+selection_policy:
+  max_supporting_hits: 2
+  distinctness_rules:
+  - different_path
+  - different_page_type
+  - different_source_or_citation_context
+quality_flags:
+- weak_linked_claim_coverage
+- low_citation_coverage
+- single_supporting_context
+confidence_assessment:
+  score: 0.0
+  band: low
+  reason_codes:
+  - weak_linked_claim_coverage
+  - low_citation_coverage
+  - single_supporting_context
+  factor_breakdown:
+    linked_claim_factor: 0.0
+    citation_factor: 0.0
+    supporting_diversity_factor: 0.0
+    base_score: 0.0
+    penalty: 0.55
+  review_action: deep-review
+rationale_claim_ids: []
+why_suggested: No linked claims found in claim-ledger.jsonl; target /wiki/source-notes/src-2026-0001-meta-ads-course-module-1.md;
+  top retrieval hit raw/sources/SRC-2026-0001-meta-ads-course/chunks/0002.md (score=2.576494);
+  no citation spans found.
+risk_or_uncertainty: 'Suggestion remains staging-only and needs reviewer approval.
+  Claim-to-target linkage was not found in claim-ledger for /wiki/source-notes/src-2026-0001-meta-ads-course-module-1.md.
+  Retrieved evidence lacks valid [Sources: ...] markers.'
+generated_at: '2026-04-12T23:47:52Z'

@@ -1,0 +1,127 @@
+evidence_bundle_id: EV-0002
+proposal_id: PRP-0002
+question_or_intent: Broad Targeting
+retrieval_context:
+  consulted_layers: wiki
+  fuzzy_enabled: false
+  aliases_enabled: true
+  alias_influence_class: none
+grounding:
+  normalized_citations:
+  - source_id: SRC-2026-0001
+    evidence_ref: §lesson-01 00:05:31-00:08:40
+  source_ids:
+  - SRC-2026-0001
+  citation_format_version: v1
+winner:
+  path: wiki/tactics/broad-targeting.md
+  snippet: '---'
+  source_markers:
+  - '[Sources: SRC-2026-0001 §lesson-01 00:05:31-00:08:40]'
+  citations:
+  - source_id: SRC-2026-0001
+    evidence_ref: §lesson-01 00:05:31-00:08:40
+  score: 21.22862
+  explain_payload:
+    path: wiki/tactics/broad-targeting.md
+    accepted: true
+    final_score: 21.22862
+    bm25_total: 15.97862
+    bm25_fields:
+      title: 7.152016
+      headings: 6.705977
+      filename: 0.0
+      frontmatter: 1.33229
+      body: 0.788337
+    heuristic_fields:
+      phrase_boost: 3.5
+      page_type_boost: 0.7
+      confidence_boost: 0.0
+      citation_boost: 0.2
+      role_adjustment: 0.4
+      canonical_precedence_boost: 0.45
+      evidence_alignment_boost: 0.0
+      fuzzy_match_boost: 0.0
+      tactic_platform_intent_boost: 0.0
+      index_page_penalty: 0.0
+    acceptance_reasons:
+    - score_meets_threshold
+    - lexical_overlap_present
+    - retrieval_role_answerable
+    rejection_reasons: []
+    metadata:
+      accepted: true
+      corpus_type: wiki
+      page_type: tactic
+      confidence: medium
+      citations_present: true
+      retrieval_role: answerable
+supporting_hits:
+- path: wiki/glossary.md
+  snippet: '---'
+  source_markers: []
+  citations: []
+  score: 1.798853
+  explain_payload:
+    path: wiki/glossary.md
+    accepted: true
+    final_score: 1.798853
+    bm25_total: 0.648853
+    bm25_fields:
+      title: 0.0
+      headings: 0.0
+      filename: 0.0
+      frontmatter: 0.0
+      body: 0.648853
+    heuristic_fields:
+      phrase_boost: 0.0
+      page_type_boost: 0.0
+      confidence_boost: 0.3
+      citation_boost: 0.0
+      role_adjustment: 0.4
+      canonical_precedence_boost: 0.45
+      evidence_alignment_boost: 0.0
+      fuzzy_match_boost: 0.0
+      tactic_platform_intent_boost: 0.0
+      index_page_penalty: 0.0
+    acceptance_reasons:
+    - score_meets_threshold
+    - lexical_overlap_present
+    - retrieval_role_answerable
+    rejection_reasons: []
+    metadata:
+      accepted: true
+      corpus_type: wiki
+      page_type: overview
+      confidence: high
+      citations_present: false
+      retrieval_role: answerable
+selection_policy:
+  max_supporting_hits: 2
+  distinctness_rules:
+  - different_path
+  - different_page_type
+  - different_source_or_citation_context
+quality_flags:
+- single_supporting_context
+confidence_assessment:
+  score: 0.325
+  band: low
+  reason_codes:
+  - citations_grounded
+  - single_supporting_context
+  factor_breakdown:
+    linked_claim_factor: 0.333333
+    citation_factor: 0.5
+    supporting_diversity_factor: 0.5
+    base_score: 0.425
+    penalty: 0.1
+  review_action: deep-review
+rationale_claim_ids:
+- CLM-0003
+why_suggested: 'Linked claims CLM-0003: Broad targeting can work well when creative
+  testing velocity is high and the offer is strong.; target /wiki/tactics/broad-targeting.md;
+  top retrieval hit wiki/tactics/broad-targeting.md (score=21.22862); citation spans
+  SRC-2026-0001 §lesson-01 00:05:31-00:08:40.'
+risk_or_uncertainty: Suggestion remains staging-only and needs reviewer approval.
+generated_at: '2026-04-12T23:47:52Z'
