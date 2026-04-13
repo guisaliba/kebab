@@ -1,7 +1,5 @@
 ---
-
-## id: WIKI-PLATFORM-0001
-
+id: WIKI-PLATFORM-0001
 title: Meta Ads
 type: platform
 status: active
@@ -11,11 +9,11 @@ updated_at: 2026-04-09T00:00:00Z
 review_status: proposed
 confidence: medium
 sources:
-
-- SRC-2026-0001
+  - SRC-2026-0001
 topics:
-- meta-ads
-- ecommerce
+  - meta-ads
+  - ecommerce
+---
 
 # Meta Ads
 

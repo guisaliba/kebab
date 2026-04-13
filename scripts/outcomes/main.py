@@ -101,10 +101,10 @@ def _outcome_key(row: dict[str, Any]) -> tuple[str, str, str]:
     )
 
 
-def _build_outcome_row(
+def _build_outcome_row_from_proposal(
     *,
     review_id: str,
-    proposal_id: str,
+    proposal: dict[str, Any],
     actual_decision: str,
     notes: str | None,
 ) -> dict[str, Any]:
@@ -114,7 +114,7 @@ def _build_outcome_row(
             "actual decision could not be normalized; expected approve/approve_with_edits/reject (or supported aliases)"
         )
 
-    proposal = _load_proposal(review_id, proposal_id)
+    proposal_id = str(proposal.get("proposal_id", ""))
     predicted = _predicted_fields(review_id, proposal)
     return {
         "recorded_at": utc_now_iso8601(),
@@ -129,6 +129,22 @@ def _build_outcome_row(
         "provenance": "real",
         "notes": notes or "",
     }
+
+
+def _build_outcome_row(
+    *,
+    review_id: str,
+    proposal_id: str,
+    actual_decision: str,
+    notes: str | None,
+) -> dict[str, Any]:
+    proposal = _load_proposal(review_id, proposal_id)
+    return _build_outcome_row_from_proposal(
+        review_id=review_id,
+        proposal=proposal,
+        actual_decision=actual_decision,
+        notes=notes,
+    )
 
 
 def _key_exists_in_jsonl(path: Path, key: tuple[str, str, str]) -> bool:
@@ -231,9 +247,9 @@ def batch_capture_outcomes(*, review_ids: list[str] | None, dataset_path: Path) 
             proposal_id = str(proposal.get("proposal_id", ""))
             if not proposal_id:
                 continue
-            row = _build_outcome_row(
+            row = _build_outcome_row_from_proposal(
                 review_id=review_id,
-                proposal_id=proposal_id,
+                proposal=proposal,
                 actual_decision=status,
                 notes=f"batch-capture from review decision status: {status}",
             )

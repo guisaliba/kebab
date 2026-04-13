@@ -31,9 +31,9 @@ ROAS sozinho não é suficiente para diagnosticar problemas de campanha. Ele dev
 
 ## Proposed updates from SRC-2026-0001
 
-- Hoje vamos falar sobre estrutura de campanha em Meta Ads e por que o ROAS sozinho nem sempre é suficiente para diagnosticar um problema. [Sources: SRC-2026-0001 §0001 00:00:00-00:02:10]
-- Quando o criativo está fraco, você pode ver CPM aceitável, mas CTR baixo. [Sources: SRC-2026-0001 §0001 00:02:11-00:05:30]
-- Quando a oferta está ruim, às vezes o clique vem, mas a conversão não acompanha. [Sources: SRC-2026-0001 §0001 00:02:11-00:05:30]
+- Hoje vamos falar sobre estrutura de campanha em Meta Ads e por que o ROAS sozinho nem sempre é suficiente para diagnosticar um problema. [Sources: SRC-2026-0001 §lesson-01 00:00:00-00:02:10]
+- Quando o criativo está fraco, você pode ver CPM aceitável, mas CTR baixo. [Sources: SRC-2026-0001 §lesson-01 00:02:11-00:05:30]
+- Quando a oferta está ruim, às vezes o clique vem, mas a conversão não acompanha. [Sources: SRC-2026-0001 §lesson-01 00:02:11-00:05:30]
 
 ## Caveats
 
