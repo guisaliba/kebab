@@ -29,6 +29,7 @@ def _run_tesseract_on_image(image_path: Path, out_txt: Path, lang: str) -> None:
     if not st["available"]:
         raise OcrIngestError(f"tesseract not usable: {st['detail']}")
 
+    out_txt.parent.mkdir(parents=True, exist_ok=True)
     out_base = out_txt.with_suffix("")  # tesseract adds .txt
     proc = subprocess.run(
         [_tesseract_bin(), str(image_path), str(out_base), "-l", lang],
