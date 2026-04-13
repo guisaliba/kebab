@@ -59,16 +59,15 @@ Staging-only. No direct writes to `wiki/`.
 - Future alias growth should be reviewable suggestions, not automatic mutation
 - No universal hardcoded typo dictionary across all domains
 
-## Phase 5 — Ingestion expansion
+## Phase 5 — Ingestion expansion (implemented)
 
-This is where the original audio/PDF/OCR work should live.
-
-- Add ffmpeg audio extraction wrapper
-- Add pluggable transcription provider layer
-- Add PDF text extraction
-- Add OCR path for scanned PDFs
-- Add book/document ingestion flows
-- Normalize source manifests for media and document types
+- Pluggable ingestion adapters (`scripts/lib/ingestion_adapters.py`) routed from `scripts/ingest/main.py`
+- Local-first: transcript/text passthrough, ffmpeg → `extracted/*.wav`, pypdf → `extracted/*.txt`, OCR (tesseract + optional pdftoppm for scanned PDFs)
+- Transcription **execution** remains a documented seam (`scripts/lib/ingestion_transcription.py`); chunking still requires `transcript/*.md` or `extracted/*.txt`
+- Manifest validation extended for optional `ingestion` / `files.originals` (`scripts/lib/validation.py`)
+- Tool detection helpers (`scripts/lib/tool_detection.py`)
+- Reset/archive guidance: `docs/reset-before-real-ingestion.md`
+- Ingest flags: `--skip-adapters`, `--no-check-tools`
 
 ## Phase 6 — Health checks and wiki maintenance
 
