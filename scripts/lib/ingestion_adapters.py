@@ -14,7 +14,7 @@ from scripts.lib.ingestion_manifest import (
     list_original_rel_paths,
     resolve_under_source,
 )
-from scripts.lib.ingestion_ocr import OcrIngestError, prepare_ocr_extracted_text, try_digital_pdf_then_ocr_if_empty
+from scripts.lib.ingestion_ocr import OcrIngestError, ocr_pdf_fallback, prepare_ocr_extracted_text, try_digital_pdf_then_ocr_if_empty
 from scripts.lib.ingestion_pdf import PdfIngestError, extract_pdf_text_to_file, pdf_text_is_effectively_empty
 from scripts.lib.ingestion_transcription import describe_transcription_seam
 
@@ -114,7 +114,10 @@ def prepare_ingest(
         return prepare_text_passthrough(source_dir)
 
     if adapter == "audio":
-        wav = extract_audio_wav(source_dir, manifest, check_tools=check_tools)
+        try:
+            wav = extract_audio_wav(source_dir, manifest, check_tools=check_tools)
+        except AudioIngestError as exc:
+            raise IngestionError(str(exc)) from exc
         return PreparedIngestArtifacts(
             source_kind="audio-wav",
             text_paths=[],
@@ -151,7 +154,7 @@ def prepare_ingest(
                 adapter_name="pdf",
             )
         try:
-            path, _text2 = try_digital_pdf_then_ocr_if_empty(source_dir, manifest)
+            path, _text2 = ocr_pdf_fallback(source_dir, manifest)
         except OcrIngestError as exc:
             raise IngestionError(
                 "PDF had no extractable text layer and OCR fallback failed. "

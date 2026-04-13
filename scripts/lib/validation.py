@@ -170,6 +170,10 @@ def validate_manifest_source(manifest: dict[str, Any], manifest_path: Path) -> l
                             errors.append(f"{manifest_path}: files.originals[{idx}] must be a non-empty string")
                         elif Path(item).is_absolute():
                             errors.append(f"{manifest_path}: files.originals[{idx}] must be relative to the source dir")
+                        elif ".." in Path(item).parts:
+                            errors.append(
+                                f"{manifest_path}: files.originals[{idx}] must not contain parent directory traversal"
+                            )
 
     return errors
 

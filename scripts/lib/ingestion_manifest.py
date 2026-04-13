@@ -39,7 +39,15 @@ def resolve_under_source(source_dir: Path, rel: str) -> Path:
     if rel_path.is_absolute():
         msg = f"path must be relative to source dir: {rel}"
         raise ValueError(msg)
-    return (source_dir / rel_path).resolve()
+    if ".." in rel_path.parts:
+        msg = f"path must not contain parent directory traversal: {rel}"
+        raise ValueError(msg)
+    resolved_source_dir = source_dir.resolve()
+    resolved_path = (resolved_source_dir / rel_path).resolve()
+    if not resolved_path.is_relative_to(resolved_source_dir):
+        msg = f"path escapes source dir: {rel}"
+        raise ValueError(msg)
+    return resolved_path
 
 
 def classify_original(path: Path) -> str | None:
