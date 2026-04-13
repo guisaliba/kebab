@@ -115,11 +115,16 @@ def prepare_ocr_extracted_text(source_dir: Path, manifest: dict[str, Any]) -> tu
     raise OcrIngestError("no image or PDF original found for OCR")
 
 
-def try_digital_pdf_then_ocr_if_empty(source_dir: Path, manifest: dict[str, Any]) -> tuple[Path, str]:
-    """
-    Prefer digital text extraction; if empty, run OCR PDF path.
+def _ocr_pdf_for_first_original(
+    source_dir: Path,
+    manifest: dict[str, Any],
+    *,
+    try_digital_first: bool,
+) -> tuple[Path, str]:
+    """Shared helper: locate first PDF original and produce OCR output.
 
-    Used when PDF is present but text layer may be missing.
+    If *try_digital_first* is True, attempts digital text extraction first and
+    returns it when non-empty; otherwise goes straight to pdftoppm + tesseract.
     """
     ing = manifest.get("ingestion") if isinstance(manifest.get("ingestion"), dict) else {}
     lang = ing.get("tesseract_lang") or "por+eng"
@@ -130,13 +135,23 @@ def try_digital_pdf_then_ocr_if_empty(source_dir: Path, manifest: dict[str, Any]
             continue
         if classify_original(abs_path) != "pdf":
             continue
-        out_txt, text = extract_pdf_text_to_file(source_dir, manifest, output_txt=None)
-        if not pdf_text_is_effectively_empty(text):
-            return out_txt, text
+        if try_digital_first:
+            out_txt, text = extract_pdf_text_to_file(source_dir, manifest, output_txt=None)
+            if not pdf_text_is_effectively_empty(text):
+                return out_txt, text
         path = _ocr_pdf_via_pdftoppm(source_dir, abs_path, lang=lang)
         return path, path.read_text(encoding="utf-8", errors="replace")
 
     raise OcrIngestError("no PDF original found")
+
+
+def try_digital_pdf_then_ocr_if_empty(source_dir: Path, manifest: dict[str, Any]) -> tuple[Path, str]:
+    """
+    Prefer digital text extraction; if empty, run OCR PDF path.
+
+    Used when PDF is present but text layer may be missing.
+    """
+    return _ocr_pdf_for_first_original(source_dir, manifest, try_digital_first=True)
 
 
 def ocr_pdf_fallback(source_dir: Path, manifest: dict[str, Any]) -> tuple[Path, str]:
@@ -145,16 +160,4 @@ def ocr_pdf_fallback(source_dir: Path, manifest: dict[str, Any]) -> tuple[Path, 
 
     Used when the caller has already determined the digital text layer is empty.
     """
-    ing = manifest.get("ingestion") if isinstance(manifest.get("ingestion"), dict) else {}
-    lang = ing.get("tesseract_lang") or "por+eng"
-
-    for rel in list_original_rel_paths(manifest):
-        abs_path = resolve_under_source(source_dir, rel)
-        if not abs_path.exists():
-            continue
-        if classify_original(abs_path) != "pdf":
-            continue
-        path = _ocr_pdf_via_pdftoppm(source_dir, abs_path, lang=lang)
-        return path, path.read_text(encoding="utf-8", errors="replace")
-
-    raise OcrIngestError("no PDF original found")
+    return _ocr_pdf_for_first_original(source_dir, manifest, try_digital_first=False)

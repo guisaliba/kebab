@@ -14,7 +14,7 @@ from scripts.lib.ingestion_manifest import (
     list_original_rel_paths,
     resolve_under_source,
 )
-from scripts.lib.ingestion_ocr import OcrIngestError, ocr_pdf_fallback, prepare_ocr_extracted_text, try_digital_pdf_then_ocr_if_empty
+from scripts.lib.ingestion_ocr import OcrIngestError, ocr_pdf_fallback, prepare_ocr_extracted_text
 from scripts.lib.ingestion_pdf import PdfIngestError, extract_pdf_text_to_file, pdf_text_is_effectively_empty
 from scripts.lib.ingestion_transcription import describe_transcription_seam
 
