@@ -75,3 +75,14 @@ Do not overgeneralize from one creator or one course.
 - make every step reproducible from CLI
 - keep provider integrations swappable
 - keep prompts versioned in repo
+
+## Cursor Cloud specific instructions
+
+This is a pure-Python CLI project with no external services, databases, or web servers.
+
+- **Activate venv**: `source .venv/bin/activate` before running any commands.
+- **Key commands** are in the `Makefile` and `README.md`: `make validate`, `make lint`, `make test`, `make index`, `make eval`.
+- **Hello-world workflow**: `make index` then `python scripts/query/main.py --question "..."` to verify end-to-end retrieval.
+- **Test suite**: `pytest -q` (69 tests, ~6s). All tests are self-contained with local fixtures — no network, no env vars, no secrets.
+- **No `.env` or secrets needed.** Optional system binaries (`ffmpeg`, `tesseract`, `pdftoppm`) are only for specific ingestion adapters and not required for core development or testing.
+- **Generated artifacts** (`exports/indexes/`, `exports/evals/`) are transient and not committed. Rebuild indexes with `make index` before querying if they appear stale.
