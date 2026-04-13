@@ -1,4 +1,4 @@
-# Market Wiki Starter
+# kebab
 
 A markdown-first, git-native internal knowledge system for curated digital marketing and e-commerce knowledge.
 
@@ -16,7 +16,7 @@ The operating model is:
 4. promote approved changes into `wiki/`
 5. answer questions from `wiki/` first, `raw/` second
 
-## What this starter contains
+## What this repo contains
 
 - directory scaffold
 - repo contracts for LLM maintainers and SWE agents
@@ -42,7 +42,7 @@ The operating model is:
 
 ## Minimal local setup
 
-This starter does not force a stack. The local scripts are Python-based for inspectable CLI workflows.
+This repo does not force a stack. The local scripts are Python-based for inspectable CLI workflows.
 
 ```bash
 python -m venv .venv
@@ -224,6 +224,25 @@ Limit batch capture to specific reviews:
 python scripts/outcomes/main.py batch-capture --review-id REV-2026-0002 --review-id REV-2026-0003
 ```
 
+Record per-proposal reviewer decisions when a single review contains mixed outcomes:
+
+```json
+{"recorded_at":"2026-04-12T23:47:56Z","proposal_id":"PRP-0001","decision":"approved_with_edits","notes":"Needs copy edit","reviewer":"human"}
+{"recorded_at":"2026-04-12T23:48:10Z","proposal_id":"PRP-0002","decision":"rejected","notes":"Too source-bound","reviewer":"human"}
+```
+
+Save those rows to:
+
+- `staging/reviews/REV-YYYY-NNNN/proposal-decisions.jsonl`
+
+Batch-capture precedence:
+
+- proposal-level `proposal-decisions.jsonl`
+- fallback to review-level `decision.md` `Status:`
+- skip proposal if neither yields a non-pending decision
+- exactly one active row per `proposal_id` is allowed in `proposal-decisions.jsonl`
+- duplicate `proposal_id` rows are rejected; there is no implicit history or last-write-wins behavior
+
 Validate local captured outcomes:
 
 ```bash
@@ -265,6 +284,8 @@ Evaluation notes:
 - 4E keeps automatic tuning disabled; report output is calibration-readiness only
 - batch capture reads `staging/reviews/REV-*/decision.md` status plus `retrieval-assist/proposals.jsonl`
 - decision mapping for batch capture is: `approved -> approve`, `approved_with_edits -> approve_with_edits`, `rejected -> reject`, `pending -> skip`
+- per-proposal reviewer outcomes can be supplied via `staging/reviews/REV-*/proposal-decisions.jsonl`
+- when present, proposal-level decisions override review-level `decision.md` status during `batch-capture`
 - batch capture skips duplicates and reviews without retrieval-assist instead of failing the whole run
 - readiness reporting now includes machine-readable `readiness_gaps` in eval JSON and human-readable remaining-needed counts in `scripts/outcomes/main.py status`
 

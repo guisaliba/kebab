@@ -18,6 +18,11 @@ from scripts.lib.ids import (
     validate_wiki_id,
 )
 from scripts.lib.paths import ROOT, SCHEMA_DIR
+from scripts.lib.reviewer_outcomes import (
+    ALLOWED_PROPOSAL_DECISION_STATUSES,
+    normalize_proposal_decision_status,
+    proposal_decisions_path,
+)
 from scripts.lib.time import is_iso8601_utc
 
 
@@ -238,6 +243,77 @@ def validate_review_package(review_dir: Path) -> list[str]:
                 errors.append(f"proposed path not under proposed/wiki: {proposed_path}")
 
     errors.extend(validate_retrieval_assist_artifacts(review_dir))
+    errors.extend(validate_proposal_decisions_sidecar(review_dir))
+    return errors
+
+
+def validate_proposal_decisions_sidecar(review_dir: Path) -> list[str]:
+    errors: list[str] = []
+    sidecar_path = proposal_decisions_path(review_dir)
+    if not sidecar_path.exists():
+        return errors
+
+    proposals_path = review_dir / "retrieval-assist" / "proposals.jsonl"
+    if not proposals_path.exists():
+        return [f"{sidecar_path}: proposal-decisions requires retrieval-assist/proposals.jsonl"]
+
+    proposal_ids: set[str] = set()
+    for index, line in enumerate(proposals_path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            proposal = json.loads(line)
+        except json.JSONDecodeError as exc:
+            errors.append(f"{proposals_path}:{index}: invalid JSON: {exc}")
+            continue
+        proposal_id = proposal.get("proposal_id")
+        if isinstance(proposal_id, str) and proposal_id:
+            proposal_ids.add(proposal_id)
+
+    seen_proposals: set[str] = set()
+    for index, line in enumerate(sidecar_path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError as exc:
+            errors.append(f"{sidecar_path}:{index}: invalid JSONL: {exc}")
+            continue
+        if not isinstance(payload, dict):
+            errors.append(f"{sidecar_path}:{index}: row must be an object")
+            continue
+
+        recorded_at = payload.get("recorded_at")
+        if not isinstance(recorded_at, str) or not is_iso8601_utc(recorded_at):
+            errors.append(f"{sidecar_path}:{index}: recorded_at must be ISO-8601 UTC")
+
+        proposal_id = payload.get("proposal_id")
+        if not isinstance(proposal_id, str) or not proposal_id:
+            errors.append(f"{sidecar_path}:{index}: proposal_id must be a non-empty string")
+        else:
+            if proposal_id in seen_proposals:
+                errors.append(
+                    f"{sidecar_path}:{index}: duplicate proposal_id {proposal_id}; exactly one active row per proposal_id is allowed"
+                )
+            seen_proposals.add(proposal_id)
+            if proposal_ids and proposal_id not in proposal_ids:
+                errors.append(f"{sidecar_path}:{index}: unknown proposal_id {proposal_id}")
+
+        decision = payload.get("decision")
+        normalized_decision = normalize_proposal_decision_status(decision)
+        if normalized_decision is None:
+            errors.append(
+                f"{sidecar_path}:{index}: decision must be one of {sorted(ALLOWED_PROPOSAL_DECISION_STATUSES)}"
+            )
+
+        notes = payload.get("notes")
+        if notes is not None and not isinstance(notes, str):
+            errors.append(f"{sidecar_path}:{index}: notes must be a string when present")
+
+        reviewer = payload.get("reviewer")
+        if reviewer is not None and not isinstance(reviewer, str):
+            errors.append(f"{sidecar_path}:{index}: reviewer must be a string when present")
+
     return errors
 
 

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 NORMALIZED_REVIEW_OUTCOMES = ("approve", "approve_with_edits", "reject")
+PROPOSAL_DECISIONS_FILENAME = "proposal-decisions.jsonl"
 REVIEW_OUTCOME_NORMALIZATION_MAP = {
     "approve": "approve",
     "approved": "approve",
@@ -23,6 +25,7 @@ REVIEW_DECISION_TO_OUTCOME = {
     "approved_with_edits": "approve_with_edits",
     "rejected": "reject",
 }
+ALLOWED_PROPOSAL_DECISION_STATUSES = frozenset(REVIEW_DECISION_TO_OUTCOME.keys())
 
 
 def normalize_reviewer_outcome(raw_value: Any) -> str | None:
@@ -70,9 +73,22 @@ def decision_status_to_outcome(raw_value: Any) -> str | None:
     return REVIEW_DECISION_TO_OUTCOME.get(token)
 
 
+def normalize_proposal_decision_status(raw_value: Any) -> str | None:
+    if not isinstance(raw_value, str):
+        return None
+    token = raw_value.strip().lower().replace(" ", "_")
+    if token in ALLOWED_PROPOSAL_DECISION_STATUSES:
+        return token
+    return None
+
+
 def extract_decision_status(markdown_text: str) -> str | None:
     for line in markdown_text.splitlines():
         if line.startswith("Status:"):
             value = line.split(":", 1)[1].strip()
             return value or None
     return None
+
+
+def proposal_decisions_path(review_dir: Path) -> Path:
+    return review_dir / PROPOSAL_DECISIONS_FILENAME

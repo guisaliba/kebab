@@ -40,5 +40,12 @@
 - 4E keeps automatic tuning disabled even when mismatch exists; calibration is readiness-oriented until real outcome coverage is sufficient.
 - 4F batch capture may scan `staging/reviews/REV-*`, read `decision.md` `Status:` value, and map review-level outcomes to every proposal in `retrieval-assist/proposals.jsonl`.
 - Batch capture decision mapping is fixed: `approved -> approve`, `approved_with_edits -> approve_with_edits`, `rejected -> reject`, `pending -> skip`.
+- Per-proposal reviewer decisions may be recorded in `staging/reviews/REV-*/proposal-decisions.jsonl`.
+- `proposal-decisions.jsonl` rows require: `recorded_at`, `proposal_id`, `decision`; optional: `notes`, `reviewer`.
+- Allowed proposal-level `decision` values are exactly: `approved`, `approved_with_edits`, `rejected`.
+- Exactly one active row per `proposal_id` is allowed in a sidecar file.
+- Duplicate `proposal_id` rows in the same sidecar are invalid; no implicit history or last-write-wins behavior is allowed.
+- Proposal-level decisions take precedence over review-level `decision.md` during `batch-capture`; review-level status remains the fallback when a proposal lacks an explicit sidecar decision.
+- Proposal-level sidecars must reference known `proposal_id` values from `retrieval-assist/proposals.jsonl`; duplicate proposal ids or malformed rows are invalid.
 - Batch capture must skip duplicate proposal outcomes and skip reviews lacking retrieval-assist artifacts instead of failing the whole command.
 - Readiness reporting must surface both boolean checks and explicit remaining-needed counts for unmet gates.

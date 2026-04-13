@@ -12,13 +12,16 @@ if str(_BOOTSTRAP_ROOT) not in sys.path:
 
 from scripts.lib.paths import ROOT, STAGING_DIR
 from scripts.lib.reviewer_outcomes import (
+    ALLOWED_PROPOSAL_DECISION_STATUSES,
     classify_dataset_provenance,
     decision_status_to_outcome,
     extract_decision_status,
     normalize_provenance,
+    normalize_proposal_decision_status,
     normalize_reviewer_outcome,
+    proposal_decisions_path,
 )
-from scripts.lib.time import utc_now_iso8601
+from scripts.lib.time import is_iso8601_utc, utc_now_iso8601
 
 DEFAULT_OUTCOMES_PATH = "staging/reviewer-outcomes/outcomes.jsonl"
 
@@ -197,6 +200,57 @@ def _review_dirs(review_ids: list[str] | None) -> list[Path]:
     return sorted(path for path in reviews_root.glob("REV-*") if path.is_dir())
 
 
+def _load_proposal_decisions(review_dir: Path, valid_proposal_ids: set[str]) -> dict[str, dict[str, Any]]:
+    sidecar_path = proposal_decisions_path(review_dir)
+    if not sidecar_path.exists():
+        return {}
+
+    decisions: dict[str, dict[str, Any]] = {}
+    for index, line in enumerate(sidecar_path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise SystemExit(f"{sidecar_path}:{index}: invalid JSONL: {exc}") from exc
+        if not isinstance(payload, dict):
+            raise SystemExit(f"{sidecar_path}:{index}: row must be an object")
+
+        proposal_id = payload.get("proposal_id")
+        if not isinstance(proposal_id, str) or not proposal_id:
+            raise SystemExit(f"{sidecar_path}:{index}: proposal_id must be a non-empty string")
+        if proposal_id in decisions:
+            raise SystemExit(
+                f"{sidecar_path}:{index}: duplicate proposal_id {proposal_id}; exactly one active row per proposal_id is allowed"
+            )
+        if valid_proposal_ids and proposal_id not in valid_proposal_ids:
+            raise SystemExit(f"{sidecar_path}:{index}: unknown proposal_id {proposal_id}")
+
+        decision = normalize_proposal_decision_status(payload.get("decision"))
+        if decision is None:
+            raise SystemExit(
+                f"{sidecar_path}:{index}: decision must be one of {sorted(ALLOWED_PROPOSAL_DECISION_STATUSES)}"
+            )
+        recorded_at = payload.get("recorded_at")
+        if not isinstance(recorded_at, str) or not is_iso8601_utc(recorded_at):
+            raise SystemExit(f"{sidecar_path}:{index}: recorded_at must be ISO-8601 UTC")
+
+        notes = payload.get("notes")
+        if notes is not None and not isinstance(notes, str):
+            raise SystemExit(f"{sidecar_path}:{index}: notes must be a string when present")
+        reviewer = payload.get("reviewer")
+        if reviewer is not None and not isinstance(reviewer, str):
+            raise SystemExit(f"{sidecar_path}:{index}: reviewer must be a string when present")
+
+        decisions[proposal_id] = {
+            "decision": decision,
+            "recorded_at": recorded_at,
+            "notes": notes or "",
+            "reviewer": reviewer or "",
+        }
+    return decisions
+
+
 def batch_capture_outcomes(*, review_ids: list[str] | None, dataset_path: Path) -> dict[str, Any]:
     existing_keys = {_outcome_key(row) for row in _load_jsonl(dataset_path)}
     captured_rows = 0
@@ -215,24 +269,6 @@ def batch_capture_outcomes(*, review_ids: list[str] | None, dataset_path: Path) 
             messages.append(f"- {review_id}: skipped (review not found)")
             continue
         decision_path = review_dir / "decision.md"
-        if not decision_path.exists():
-            skipped_invalid_status += 1
-            messages.append(f"- {review_id}: skipped (decision.md missing)")
-            continue
-        status = extract_decision_status(decision_path.read_text(encoding="utf-8"))
-        if status is None:
-            skipped_invalid_status += 1
-            messages.append(f"- {review_id}: skipped (Status line missing)")
-            continue
-        normalized_outcome = decision_status_to_outcome(status)
-        if normalized_outcome is None:
-            if status.strip().lower() == "pending":
-                skipped_pending += 1
-                messages.append(f"- {review_id}: skipped (pending decision)")
-            else:
-                skipped_invalid_status += 1
-                messages.append(f"- {review_id}: skipped (unsupported decision status: {status})")
-            continue
         proposals_path = review_dir / "retrieval-assist" / "proposals.jsonl"
         if not proposals_path.exists():
             skipped_missing_retrieval += 1
@@ -240,18 +276,58 @@ def batch_capture_outcomes(*, review_ids: list[str] | None, dataset_path: Path) 
             continue
 
         proposals = _load_jsonl(proposals_path)
+        valid_proposal_ids = {
+            str(proposal.get("proposal_id", ""))
+            for proposal in proposals
+            if isinstance(proposal, dict) and str(proposal.get("proposal_id", ""))
+        }
+        sidecar_decisions = _load_proposal_decisions(review_dir, valid_proposal_ids)
+        sidecar_overrides = 0
+        status: str | None = None
+        review_level_decision: str | None = None
+        if decision_path.exists():
+            status = extract_decision_status(decision_path.read_text(encoding="utf-8"))
+            if status is None:
+                skipped_invalid_status += 1
+                messages.append(f"- {review_id}: skipped (Status line missing)")
+                continue
+            review_level_decision = decision_status_to_outcome(status)
+            if review_level_decision is None and status.strip().lower() != "pending":
+                skipped_invalid_status += 1
+                messages.append(f"- {review_id}: skipped (unsupported decision status: {status})")
+                continue
+        elif not sidecar_decisions:
+            skipped_invalid_status += 1
+            messages.append(f"- {review_id}: skipped (decision.md missing and no proposal sidecar)")
+            continue
+
         processed_reviews += 1
         review_captured = 0
         review_duplicates = 0
+        review_skipped_pending = 0
         for proposal in proposals:
             proposal_id = str(proposal.get("proposal_id", ""))
             if not proposal_id:
                 continue
+            decision_source = "review"
+            actual_decision = status or ""
+            notes = f"batch-capture from review decision status: {actual_decision}" if actual_decision else ""
+            if proposal_id in sidecar_decisions:
+                decision_source = "proposal-sidecar"
+                actual_decision = sidecar_decisions[proposal_id]["decision"]
+                notes = f"batch-capture from proposal sidecar decision: {actual_decision}"
+                if review_level_decision is not None and decision_status_to_outcome(actual_decision) != review_level_decision:
+                    sidecar_overrides += 1
+            elif review_level_decision is None:
+                skipped_pending += 1
+                review_skipped_pending += 1
+                continue
+
             row = _build_outcome_row_from_proposal(
                 review_id=review_id,
                 proposal=proposal,
-                actual_decision=status,
-                notes=f"batch-capture from review decision status: {status}",
+                actual_decision=actual_decision,
+                notes=notes,
             )
             key = _outcome_key(row)
             if key in existing_keys:
@@ -262,8 +338,14 @@ def batch_capture_outcomes(*, review_ids: list[str] | None, dataset_path: Path) 
             existing_keys.add(key)
             captured_rows += 1
             review_captured += 1
+        if review_captured == 0 and review_skipped_pending and not sidecar_decisions:
+            messages.append(f"- {review_id}: skipped (pending decision)")
+            continue
+        fallback_summary = review_level_decision or "pending"
         messages.append(
-            f"- {review_id}: captured={review_captured}, skipped_duplicates={review_duplicates}, normalized_outcome={normalized_outcome}"
+            f"- {review_id}: captured={review_captured}, skipped_duplicates={review_duplicates}, "
+            f"skipped_pending={review_skipped_pending}, proposal_overrides={sidecar_overrides}, "
+            f"fallback_review_status={fallback_summary}"
         )
 
     return {

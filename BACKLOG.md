@@ -1,6 +1,6 @@
 # Revised Implementation Backlog
 
-## Completed (through Phase 3E)
+## Completed (through Phase 4F)
 
 ### Foundation and vertical slice
 
@@ -26,18 +26,29 @@
 - Centralized raw evidence alignment helper for explicit component scoring
 - KB/domain-scoped alias overrides (minimal, explicit) with runtime ablation support
 
-## Phase 4 — Retrieval-backed curation assistance (next)
+### Retrieval-backed curation assistance (4-4F)
 
 Staging-only. No direct writes to `wiki/`.
 
 - Use retrieval outputs to support proposed wiki updates under `staging/`
-- Attach explicit evidence bundles to each proposed change
-- Generate reviewer-facing “why this change is suggested” notes
-- Keep all suggestions review-gated
+- Attach explicit evidence bundles, structured grounding, and reviewer-facing rationale to each proposed change
+- Add proposal confidence assessment and reviewer triage metadata
+- Add reviewer outcome capture (`append`, `validate`, `batch-capture`, `status`) under `staging/reviewer-outcomes/outcomes.jsonl`
+- Add readiness reporting (`dataset provenance`, `class balance`, `readiness_gaps`) while keeping automatic tuning disabled
 - Preserve retrieval-sensitive invariants from 3E:
   - keep alias attribution classes stable
   - keep centralized raw evidence alignment helper stable
   - no regression in retrieval/eval guardrails
+
+## Phase 4G — Per-proposal reviewer outcome capture
+
+Staging-only. No direct writes to `wiki/`.
+
+- Add structured proposal-level reviewer decision sidecars under `staging/reviews/REV-*/proposal-decisions.jsonl`
+- Make `batch-capture` prefer proposal-level decisions over review-level `decision.md` when present
+- Preserve append-only outcome recording and duplicate rejection
+- Keep readiness tracking and calibration reporting intact
+- Update README/BACKLOG wording to reflect the current system state and project name
 
 ## Retrieval normalization policy (long-term)
 
