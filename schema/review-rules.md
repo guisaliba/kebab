@@ -45,7 +45,10 @@
 - Allowed proposal-level `decision` values are exactly: `approved`, `approved_with_edits`, `rejected`.
 - Exactly one active row per `proposal_id` is allowed in a sidecar file.
 - Duplicate `proposal_id` rows in the same sidecar are invalid; no implicit history or last-write-wins behavior is allowed.
+- `record-decision` is the primary operator workflow for writing proposal-level decisions; updating an existing proposal decision must be explicit (`--replace` or equivalent), never silent.
+- `list-missing-decisions` and `scaffold-sidecar` are optional support utilities to improve normal review ergonomics.
 - Proposal-level decisions take precedence over review-level `decision.md` during `batch-capture`; review-level status remains the fallback when a proposal lacks an explicit sidecar decision.
 - Proposal-level sidecars must reference known `proposal_id` values from `retrieval-assist/proposals.jsonl`; duplicate proposal ids or malformed rows are invalid.
 - Batch capture must skip duplicate proposal outcomes and skip reviews lacking retrieval-assist artifacts instead of failing the whole command.
 - Readiness reporting must surface both boolean checks and explicit remaining-needed counts for unmet gates.
+- Status reporting should make fallback-only reviews visible so operators know which reviews still rely solely on review-level outcomes.

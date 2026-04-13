@@ -20,6 +20,7 @@ from scripts.lib.reviewer_outcomes import (
     normalize_proposal_decision_status,
     normalize_reviewer_outcome,
     proposal_decisions_path,
+    proposal_decisions_template_path,
 )
 from scripts.lib.time import is_iso8601_utc, utc_now_iso8601
 
@@ -49,11 +50,23 @@ def _append_jsonl_row(path: Path, row: dict[str, Any]) -> None:
         handle.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
-def _load_proposal(review_id: str, proposal_id: str) -> dict[str, Any]:
-    proposals_path = ROOT / "staging" / "reviews" / review_id / "retrieval-assist" / "proposals.jsonl"
+def _write_jsonl_rows(path: Path, rows: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows)
+    path.write_text(payload, encoding="utf-8")
+
+
+def _load_retrieval_proposals(review_dir: Path) -> list[dict[str, Any]]:
+    proposals_path = review_dir / "retrieval-assist" / "proposals.jsonl"
     if not proposals_path.exists():
         raise SystemExit(f"retrieval-assist proposals not found: {proposals_path}")
-    proposals = _load_jsonl(proposals_path)
+    return _load_jsonl(proposals_path)
+
+
+def _load_proposal(review_id: str, proposal_id: str) -> dict[str, Any]:
+    review_dir = ROOT / "staging" / "reviews" / review_id
+    proposals = _load_retrieval_proposals(review_dir)
+    proposals_path = review_dir / "retrieval-assist" / "proposals.jsonl"
     for proposal in proposals:
         if str(proposal.get("proposal_id")) == proposal_id:
             return proposal
@@ -200,12 +213,13 @@ def _review_dirs(review_ids: list[str] | None) -> list[Path]:
     return sorted(path for path in reviews_root.glob("REV-*") if path.is_dir())
 
 
-def _load_proposal_decisions(review_dir: Path, valid_proposal_ids: set[str]) -> dict[str, dict[str, Any]]:
+def _load_proposal_decision_rows(review_dir: Path, valid_proposal_ids: set[str]) -> list[dict[str, Any]]:
     sidecar_path = proposal_decisions_path(review_dir)
     if not sidecar_path.exists():
-        return {}
+        return []
 
-    decisions: dict[str, dict[str, Any]] = {}
+    decisions: list[dict[str, Any]] = []
+    seen_proposal_ids: set[str] = set()
     for index, line in enumerate(sidecar_path.read_text(encoding="utf-8").splitlines(), start=1):
         if not line.strip():
             continue
@@ -219,10 +233,11 @@ def _load_proposal_decisions(review_dir: Path, valid_proposal_ids: set[str]) -> 
         proposal_id = payload.get("proposal_id")
         if not isinstance(proposal_id, str) or not proposal_id:
             raise SystemExit(f"{sidecar_path}:{index}: proposal_id must be a non-empty string")
-        if proposal_id in decisions:
+        if proposal_id in seen_proposal_ids:
             raise SystemExit(
                 f"{sidecar_path}:{index}: duplicate proposal_id {proposal_id}; exactly one active row per proposal_id is allowed"
             )
+        seen_proposal_ids.add(proposal_id)
         if valid_proposal_ids and proposal_id not in valid_proposal_ids:
             raise SystemExit(f"{sidecar_path}:{index}: unknown proposal_id {proposal_id}")
 
@@ -242,13 +257,214 @@ def _load_proposal_decisions(review_dir: Path, valid_proposal_ids: set[str]) -> 
         if reviewer is not None and not isinstance(reviewer, str):
             raise SystemExit(f"{sidecar_path}:{index}: reviewer must be a string when present")
 
-        decisions[proposal_id] = {
-            "decision": decision,
-            "recorded_at": recorded_at,
-            "notes": notes or "",
-            "reviewer": reviewer or "",
-        }
+        decisions.append(
+            {
+                "proposal_id": proposal_id,
+                "decision": decision,
+                "recorded_at": recorded_at,
+                "notes": notes or "",
+                "reviewer": reviewer or "",
+            }
+        )
     return decisions
+
+
+def _load_proposal_decisions(review_dir: Path, valid_proposal_ids: set[str]) -> dict[str, dict[str, Any]]:
+    rows = _load_proposal_decision_rows(review_dir, valid_proposal_ids)
+    return {str(row["proposal_id"]): row for row in rows}
+
+
+def _review_level_status(review_dir: Path) -> tuple[str | None, str | None]:
+    decision_path = review_dir / "decision.md"
+    if not decision_path.exists():
+        return (None, None)
+    status = extract_decision_status(decision_path.read_text(encoding="utf-8"))
+    if status is None:
+        return ("__missing__", None)
+    return (status, decision_status_to_outcome(status))
+
+
+def _record_decision_row(
+    *,
+    review_id: str,
+    proposal_id: str,
+    decision: str,
+    notes: str | None,
+    reviewer: str | None,
+) -> dict[str, Any]:
+    normalized_decision = normalize_proposal_decision_status(decision)
+    if normalized_decision is None:
+        raise SystemExit(
+            f"decision must be one of {sorted(ALLOWED_PROPOSAL_DECISION_STATUSES)}"
+        )
+    return {
+        "recorded_at": utc_now_iso8601(),
+        "proposal_id": proposal_id,
+        "decision": normalized_decision,
+        "notes": notes or "",
+        "reviewer": reviewer or "",
+    }
+
+
+def record_proposal_decision(
+    *,
+    review_id: str,
+    proposal_id: str,
+    decision: str,
+    notes: str | None,
+    reviewer: str | None,
+    replace: bool,
+) -> tuple[str, Path]:
+    review_dir = STAGING_DIR / "reviews" / review_id
+    if not review_dir.exists():
+        raise SystemExit(f"review directory not found: {review_dir}")
+    proposals = _load_retrieval_proposals(review_dir)
+    valid_proposal_ids = {
+        str(proposal.get("proposal_id", ""))
+        for proposal in proposals
+        if isinstance(proposal, dict) and str(proposal.get("proposal_id", ""))
+    }
+    if proposal_id not in valid_proposal_ids:
+        raise SystemExit(f"proposal not found in retrieval-assist/proposals.jsonl: {proposal_id}")
+
+    sidecar_path = proposal_decisions_path(review_dir)
+    existing_rows = _load_proposal_decision_rows(review_dir, valid_proposal_ids)
+    existing_index = next(
+        (index for index, row in enumerate(existing_rows) if str(row.get("proposal_id")) == proposal_id),
+        None,
+    )
+    new_row = _record_decision_row(
+        review_id=review_id,
+        proposal_id=proposal_id,
+        decision=decision,
+        notes=notes,
+        reviewer=reviewer,
+    )
+
+    if existing_index is not None and not replace:
+        raise SystemExit(
+            f"proposal {proposal_id} already has a recorded decision in {sidecar_path}; rerun with --replace to update it"
+        )
+
+    action = "recorded"
+    if existing_index is not None:
+        existing_rows[existing_index] = new_row
+        action = "replaced"
+    else:
+        existing_rows.append(new_row)
+    _write_jsonl_rows(sidecar_path, existing_rows)
+    return action, sidecar_path
+
+
+def scaffold_sidecar(*, review_id: str, output_path: Path | None = None, overwrite: bool = False) -> tuple[Path, int]:
+    review_dir = STAGING_DIR / "reviews" / review_id
+    if not review_dir.exists():
+        raise SystemExit(f"review directory not found: {review_dir}")
+    proposals = _load_retrieval_proposals(review_dir)
+    valid_proposal_ids = {
+        str(proposal.get("proposal_id", ""))
+        for proposal in proposals
+        if isinstance(proposal, dict) and str(proposal.get("proposal_id", ""))
+    }
+    existing = _load_proposal_decisions(review_dir, valid_proposal_ids)
+    template_rows: list[dict[str, Any]] = []
+    for proposal in proposals:
+        proposal_id = str(proposal.get("proposal_id", ""))
+        if not proposal_id or proposal_id in existing:
+            continue
+        template_rows.append(
+            {
+                "recorded_at": utc_now_iso8601(),
+                "proposal_id": proposal_id,
+                "decision": "__REQUIRED__",
+                "notes": "",
+                "reviewer": "",
+            }
+        )
+    output_path = output_path or proposal_decisions_template_path(review_dir)
+    if output_path.exists() and not overwrite:
+        raise SystemExit(f"template already exists: {output_path}; rerun with --overwrite to replace it")
+    _write_jsonl_rows(output_path, template_rows)
+    return output_path, len(template_rows)
+
+
+def list_missing_decisions(*, review_ids: list[str] | None) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    for review_dir in _review_dirs(review_ids):
+        if not review_dir.exists():
+            continue
+        proposals_path = review_dir / "retrieval-assist" / "proposals.jsonl"
+        if not proposals_path.exists():
+            continue
+        proposals = _load_jsonl(proposals_path)
+        valid_proposal_ids = {
+            str(proposal.get("proposal_id", ""))
+            for proposal in proposals
+            if isinstance(proposal, dict) and str(proposal.get("proposal_id", ""))
+        }
+        sidecar = _load_proposal_decisions(review_dir, valid_proposal_ids)
+        status, fallback = _review_level_status(review_dir)
+        missing: list[dict[str, Any]] = []
+        for proposal in proposals:
+            proposal_id = str(proposal.get("proposal_id", ""))
+            if not proposal_id or proposal_id in sidecar:
+                continue
+            missing.append(
+                {
+                    "proposal_id": proposal_id,
+                    "intended_wiki_path": str(proposal.get("intended_wiki_path", "")),
+                    "fallback_review_status": fallback or ("pending" if status == "pending" else ""),
+                }
+            )
+        if missing:
+            results.append(
+                {
+                    "review_id": review_dir.name,
+                    "missing": missing,
+                    "fallback_review_status": fallback or ("pending" if status == "pending" else "none"),
+                }
+            )
+    return results
+
+
+def _review_decision_coverage(review_ids: list[str] | None = None) -> list[dict[str, Any]]:
+    coverage: list[dict[str, Any]] = []
+    for review_dir in _review_dirs(review_ids):
+        proposals_path = review_dir / "retrieval-assist" / "proposals.jsonl"
+        if not proposals_path.exists():
+            continue
+        proposals = _load_jsonl(proposals_path)
+        valid_proposal_ids = [
+            str(proposal.get("proposal_id", ""))
+            for proposal in proposals
+            if isinstance(proposal, dict) and str(proposal.get("proposal_id", ""))
+        ]
+        sidecar = _load_proposal_decisions(review_dir, set(valid_proposal_ids))
+        status, fallback = _review_level_status(review_dir)
+        sidecar_count = len(sidecar)
+        total = len(valid_proposal_ids)
+        missing = max(total - sidecar_count, 0)
+        if total == 0:
+            mode = "none"
+        elif sidecar_count == 0 and fallback is not None:
+            mode = "fallback_only"
+        elif 0 < sidecar_count < total:
+            mode = "partial_sidecar"
+        elif sidecar_count == total:
+            mode = "proposal_only"
+        else:
+            mode = "pending_or_unresolved"
+        coverage.append(
+            {
+                "review_id": review_dir.name,
+                "total_proposals": total,
+                "sidecar_decisions": sidecar_count,
+                "missing_proposal_decisions": missing,
+                "fallback_review_status": fallback or ("pending" if status == "pending" else "none"),
+                "mode": mode,
+            }
+        )
+    return coverage
 
 
 def batch_capture_outcomes(*, review_ids: list[str] | None, dataset_path: Path) -> dict[str, Any]:
@@ -414,9 +630,25 @@ def main() -> None:
     append_parser.add_argument("--notes")
     append_parser.add_argument("--dataset-path", default=DEFAULT_OUTCOMES_PATH)
 
+    record_parser = subparsers.add_parser("record-decision")
+    record_parser.add_argument("--review-id", required=True)
+    record_parser.add_argument("--proposal-id", required=True)
+    record_parser.add_argument("--decision", required=True)
+    record_parser.add_argument("--notes")
+    record_parser.add_argument("--reviewer")
+    record_parser.add_argument("--replace", action="store_true")
+
     batch_parser = subparsers.add_parser("batch-capture")
     batch_parser.add_argument("--review-id", action="append", dest="review_ids")
     batch_parser.add_argument("--dataset-path", default=DEFAULT_OUTCOMES_PATH)
+
+    list_missing_parser = subparsers.add_parser("list-missing-decisions")
+    list_missing_parser.add_argument("--review-id", action="append", dest="review_ids")
+
+    scaffold_parser = subparsers.add_parser("scaffold-sidecar")
+    scaffold_parser.add_argument("--review-id", required=True)
+    scaffold_parser.add_argument("--output-path")
+    scaffold_parser.add_argument("--overwrite", action="store_true")
 
     status_parser = subparsers.add_parser("status")
     status_parser.add_argument("--dataset-path", default=DEFAULT_OUTCOMES_PATH)
@@ -425,8 +657,9 @@ def main() -> None:
     validate_parser.add_argument("--dataset-path", default=DEFAULT_OUTCOMES_PATH)
 
     args = parser.parse_args()
-    dataset_path = (ROOT / args.dataset_path).resolve()
+    dataset_path = (ROOT / args.dataset_path).resolve() if hasattr(args, "dataset_path") else None
     if args.command == "append":
+        assert dataset_path is not None
         row = append_outcome(
             review_id=args.review_id,
             proposal_id=args.proposal_id,
@@ -440,7 +673,21 @@ def main() -> None:
         )
         return
 
+    if args.command == "record-decision":
+        action, sidecar_path = record_proposal_decision(
+            review_id=args.review_id,
+            proposal_id=args.proposal_id,
+            decision=args.decision,
+            notes=args.notes,
+            reviewer=args.reviewer,
+            replace=args.replace,
+        )
+        print(f"proposal decision {action}: {sidecar_path.relative_to(ROOT)}")
+        print(f"proposal_id: {args.proposal_id}")
+        return
+
     if args.command == "batch-capture":
+        assert dataset_path is not None
         result = batch_capture_outcomes(review_ids=args.review_ids, dataset_path=dataset_path)
         print(f"outcome dataset: {dataset_path.relative_to(ROOT)}")
         print(f"processed_reviews: {result['processed_reviews']}")
@@ -454,7 +701,35 @@ def main() -> None:
             print(message)
         return
 
+    if args.command == "list-missing-decisions":
+        results = list_missing_decisions(review_ids=args.review_ids)
+        if not results:
+            print("no missing proposal decisions")
+            return
+        for item in results:
+            print(
+                f"{item['review_id']}: missing={len(item['missing'])} fallback_review_status={item['fallback_review_status']}"
+            )
+            for proposal in item["missing"]:
+                print(
+                    f"- {proposal['proposal_id']} -> {proposal['intended_wiki_path']} "
+                    f"(fallback={proposal['fallback_review_status']})"
+                )
+        return
+
+    if args.command == "scaffold-sidecar":
+        output_path = (ROOT / args.output_path).resolve() if args.output_path else None
+        path, row_count = scaffold_sidecar(
+            review_id=args.review_id,
+            output_path=output_path,
+            overwrite=args.overwrite,
+        )
+        print(f"proposal decision template written: {path.relative_to(ROOT)}")
+        print(f"template_rows: {row_count}")
+        return
+
     if args.command == "status":
+        assert dataset_path is not None
         report = status_report(dataset_path)
         metrics = report["metrics"]
         readiness = report["readiness"]
@@ -484,8 +759,25 @@ def main() -> None:
             threshold = gap.get("threshold", 0)
             remaining = gap.get("remaining", 0)
             print(f"- {check_name}: false (have {current}, need {threshold}, remaining {remaining})")
+        coverage = _review_decision_coverage()
+        fallback_only = [item for item in coverage if item["mode"] == "fallback_only"]
+        partial = [item for item in coverage if item["mode"] == "partial_sidecar"]
+        if fallback_only:
+            print("fallback_only_reviews:")
+            for item in fallback_only:
+                print(
+                    f"- {item['review_id']}: proposals={item['total_proposals']} fallback_review_status={item['fallback_review_status']}"
+                )
+        if partial:
+            print("partial_proposal_decision_reviews:")
+            for item in partial:
+                print(
+                    f"- {item['review_id']}: sidecar={item['sidecar_decisions']}/{item['total_proposals']} "
+                    f"fallback_review_status={item['fallback_review_status']}"
+                )
         return
 
+    assert dataset_path is not None
     row_count, invalid_count = validate_outcomes(dataset_path)
     print(f"outcomes rows: {row_count}")
     print(f"normalization mismatches: {invalid_count}")

@@ -235,6 +235,26 @@ Save those rows to:
 
 - `staging/reviews/REV-YYYY-NNNN/proposal-decisions.jsonl`
 
+Preferred workflow for normal review work:
+
+```bash
+python scripts/outcomes/main.py record-decision \
+  --review-id REV-2026-0001 \
+  --proposal-id PRP-0001 \
+  --decision approved_with_edits \
+  --notes "Needs wording cleanup"
+```
+
+Update an existing proposal decision explicitly:
+
+```bash
+python scripts/outcomes/main.py record-decision \
+  --review-id REV-2026-0001 \
+  --proposal-id PRP-0001 \
+  --decision rejected \
+  --replace
+```
+
 Batch-capture precedence:
 
 - proposal-level `proposal-decisions.jsonl`
@@ -242,6 +262,18 @@ Batch-capture precedence:
 - skip proposal if neither yields a non-pending decision
 - exactly one active row per `proposal_id` is allowed in `proposal-decisions.jsonl`
 - duplicate `proposal_id` rows are rejected; there is no implicit history or last-write-wins behavior
+
+List proposals still missing proposal-level decisions:
+
+```bash
+python scripts/outcomes/main.py list-missing-decisions --review-id REV-2026-0001
+```
+
+Generate a clean template for missing proposal decisions:
+
+```bash
+python scripts/outcomes/main.py scaffold-sidecar --review-id REV-2026-0001
+```
 
 Validate local captured outcomes:
 
@@ -286,8 +318,11 @@ Evaluation notes:
 - decision mapping for batch capture is: `approved -> approve`, `approved_with_edits -> approve_with_edits`, `rejected -> reject`, `pending -> skip`
 - per-proposal reviewer outcomes can be supplied via `staging/reviews/REV-*/proposal-decisions.jsonl`
 - when present, proposal-level decisions override review-level `decision.md` status during `batch-capture`
+- `record-decision` is the primary workflow; existing proposal decisions fail by default and require explicit `--replace` to update
+- `list-missing-decisions` and `scaffold-sidecar` are support tools for review ergonomics
 - batch capture skips duplicates and reviews without retrieval-assist instead of failing the whole run
 - readiness reporting now includes machine-readable `readiness_gaps` in eval JSON and human-readable remaining-needed counts in `scripts/outcomes/main.py status`
+- `status` also surfaces reviews that are still relying only on fallback review-level outcomes
 
 ### Retrieval Normalization Policy
 

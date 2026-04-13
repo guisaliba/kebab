@@ -46,6 +46,7 @@ Staging-only. No direct writes to `wiki/`.
 
 - Add structured proposal-level reviewer decision sidecars under `staging/reviews/REV-*/proposal-decisions.jsonl`
 - Make `batch-capture` prefer proposal-level decisions over review-level `decision.md` when present
+- Add normal-review ergonomics (`record-decision`, `list-missing-decisions`, `scaffold-sidecar`) so proposal decisions are easy to record and inspect
 - Preserve append-only outcome recording and duplicate rejection
 - Keep readiness tracking and calibration reporting intact
 - Update README/BACKLOG wording to reflect the current system state and project name

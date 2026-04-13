@@ -5,6 +5,7 @@ from typing import Any
 
 NORMALIZED_REVIEW_OUTCOMES = ("approve", "approve_with_edits", "reject")
 PROPOSAL_DECISIONS_FILENAME = "proposal-decisions.jsonl"
+PROPOSAL_DECISIONS_TEMPLATE_FILENAME = "proposal-decisions.template.jsonl"
 REVIEW_OUTCOME_NORMALIZATION_MAP = {
     "approve": "approve",
     "approved": "approve",
@@ -92,3 +93,7 @@ def extract_decision_status(markdown_text: str) -> str | None:
 
 def proposal_decisions_path(review_dir: Path) -> Path:
     return review_dir / PROPOSAL_DECISIONS_FILENAME
+
+
+def proposal_decisions_template_path(review_dir: Path) -> Path:
+    return review_dir / PROPOSAL_DECISIONS_TEMPLATE_FILENAME
