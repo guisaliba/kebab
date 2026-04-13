@@ -11,6 +11,8 @@ def test_eval_runner_outputs_required_metrics() -> None:
         [
             sys.executable,
             str(ROOT / "scripts" / "eval" / "main.py"),
+            "--reviewer-outcomes",
+            "tests/fixtures/reviewer_outcomes/synthetic_outcomes.json",
         ],
         cwd=ROOT,
         check=False,

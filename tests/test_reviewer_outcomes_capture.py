@@ -4,10 +4,20 @@ import subprocess
 import sys
 from pathlib import Path
 
+import yaml
+
 from scripts.lib.paths import ROOT
+from scripts.lib.validation import validate_review_package
 
 
-def _build_review_fixture(review_id: str, *, decision_status: str = "pending", include_retrieval_assist: bool = True) -> Path:
+def _build_review_fixture(
+    review_id: str,
+    *,
+    decision_status: str = "pending",
+    include_retrieval_assist: bool = True,
+    proposals: list[dict[str, object]] | None = None,
+    proposal_decisions: list[dict[str, object]] | None = None,
+) -> Path:
     review_dir = ROOT / "staging" / "reviews" / review_id
     assist_dir = review_dir / "retrieval-assist"
     evidence_dir = assist_dir / "evidence"
@@ -22,25 +32,77 @@ def _build_review_fixture(review_id: str, *, decision_status: str = "pending", i
         return review_dir
     evidence_dir.mkdir(parents=True, exist_ok=True)
 
-    proposal = {
-        "proposal_id": "PRP-0001",
-        "target_proposed_path": f"staging/reviews/{review_id}/proposed/wiki/platforms/meta-ads.md",
-        "intended_wiki_path": "wiki/platforms/meta-ads.md",
-        "change_type": "update_section",
-        "summary": "test summary",
-        "evidence_bundle_id": "EV-0001",
-        "review_status": "proposed",
-        "confidence_score": 0.72,
-        "confidence_band": "medium",
-        "confidence_reason_codes": ["citations_grounded"],
-        "review_action": "normal-review",
-    }
-    (assist_dir / "proposals.jsonl").write_text(json.dumps(proposal, ensure_ascii=False) + "\n", encoding="utf-8")
-    (evidence_dir / "EV-0001.yaml").write_text(
-        "confidence_assessment:\n  score: 0.72\n  band: medium\n  reason_codes: [citations_grounded]\n  factor_breakdown: {}\n  review_action: normal-review\n",
+    proposals = proposals or [
+        {
+            "proposal_id": "PRP-0001",
+            "target_proposed_path": f"staging/reviews/{review_id}/proposed/wiki/platforms/meta-ads.md",
+            "intended_wiki_path": "wiki/platforms/meta-ads.md",
+            "change_type": "update_section",
+            "summary": "test summary",
+            "evidence_bundle_id": "EV-0001",
+            "review_status": "proposed",
+            "confidence_score": 0.72,
+            "confidence_band": "medium",
+            "confidence_reason_codes": ["citations_grounded"],
+            "review_action": "normal-review",
+        }
+    ]
+    proposals_path = assist_dir / "proposals.jsonl"
+    proposals_path.write_text(
+        "".join(json.dumps(proposal, ensure_ascii=False) + "\n" for proposal in proposals),
         encoding="utf-8",
     )
+    for proposal in proposals:
+        evidence_bundle_id = str(proposal["evidence_bundle_id"])
+        score = float(proposal.get("confidence_score", 0.72))
+        band = str(proposal.get("confidence_band", "medium"))
+        action = str(proposal.get("review_action", "normal-review"))
+        reason_codes = proposal.get("confidence_reason_codes", ["citations_grounded"])
+        if not isinstance(reason_codes, list):
+            reason_codes = ["citations_grounded"]
+        (evidence_dir / f"{evidence_bundle_id}.yaml").write_text(
+            (
+                "confidence_assessment:\n"
+                f"  score: {score}\n"
+                f"  band: {band}\n"
+                f"  reason_codes: {json.dumps(reason_codes, ensure_ascii=False)}\n"
+                "  factor_breakdown: {}\n"
+                f"  review_action: {action}\n"
+            ),
+            encoding="utf-8",
+        )
+    if proposal_decisions:
+        (review_dir / "proposal-decisions.jsonl").write_text(
+            "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in proposal_decisions),
+            encoding="utf-8",
+        )
     return review_dir
+
+
+def _write_review_manifest(review_dir: Path, proposal_paths: list[str]) -> None:
+    payload = {
+        "review_id": review_dir.name,
+        "source_id": "SRC-2099-9800",
+        "package_status": "pending",
+        "created_at": "2026-04-12T00:00:00Z",
+        "updated_at": "2026-04-12T00:00:00Z",
+        "proposed_paths": proposal_paths,
+        "notes": "test review",
+    }
+    (review_dir / "manifest.yaml").write_text(
+        yaml.safe_dump(payload, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+
+
+def _write_required_review_files(review_dir: Path) -> None:
+    (review_dir / "source-summary.md").write_text("# Source Summary\n", encoding="utf-8")
+    (review_dir / "contradictions.md").write_text("# Contradictions\n", encoding="utf-8")
+    (review_dir / "open-questions.md").write_text("# Open Questions\n", encoding="utf-8")
+    (review_dir / "claim-ledger.jsonl").write_text(
+        '{"claim_id":"CLM-0001","source_id":"SRC-2099-9800","claim":"test","touches":["/wiki/platforms/meta-ads.md"]}\n',
+        encoding="utf-8",
+    )
 
 
 def test_append_outcome_writes_real_row_and_rejects_duplicate() -> None:
@@ -102,6 +164,80 @@ def test_append_outcome_writes_real_row_and_rejects_duplicate() -> None:
             shutil.rmtree(review_dir)
         if dataset_path.exists():
             dataset_path.unlink()
+
+
+def test_record_decision_creates_then_requires_replace_for_same_proposal() -> None:
+    review_id = "REV-2099-9799"
+    review_dir = _build_review_fixture(review_id, decision_status="pending")
+    try:
+        first = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "outcomes" / "main.py"),
+                "record-decision",
+                "--review-id",
+                review_id,
+                "--proposal-id",
+                "PRP-0001",
+                "--decision",
+                "approved",
+            ],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert first.returncode == 0, first.stderr + first.stdout
+        sidecar_path = review_dir / "proposal-decisions.jsonl"
+        rows = [json.loads(line) for line in sidecar_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        assert len(rows) == 1
+        assert rows[0]["decision"] == "approved"
+
+        second = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "outcomes" / "main.py"),
+                "record-decision",
+                "--review-id",
+                review_id,
+                "--proposal-id",
+                "PRP-0001",
+                "--decision",
+                "rejected",
+            ],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert second.returncode != 0
+        assert "rerun with --replace" in (second.stderr + second.stdout)
+
+        replace = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "outcomes" / "main.py"),
+                "record-decision",
+                "--review-id",
+                review_id,
+                "--proposal-id",
+                "PRP-0001",
+                "--decision",
+                "rejected",
+                "--replace",
+            ],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert replace.returncode == 0, replace.stderr + replace.stdout
+        rows = [json.loads(line) for line in sidecar_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        assert len(rows) == 1
+        assert rows[0]["decision"] == "rejected"
+    finally:
+        if review_dir.exists():
+            shutil.rmtree(review_dir)
 
 
 def test_validate_outcomes_catches_normalization_mismatch() -> None:
@@ -290,6 +426,90 @@ def test_batch_capture_skips_reviews_without_retrieval_assist() -> None:
             dataset_path.unlink()
 
 
+def test_list_missing_decisions_and_scaffold_sidecar_cover_remaining_proposals() -> None:
+    review_id = "REV-2099-9808"
+    review_dir = _build_review_fixture(
+        review_id,
+        decision_status="approved",
+        proposals=[
+            {
+                "proposal_id": "PRP-0001",
+                "target_proposed_path": f"staging/reviews/{review_id}/proposed/wiki/platforms/meta-ads.md",
+                "intended_wiki_path": "wiki/platforms/meta-ads.md",
+                "change_type": "update_section",
+                "summary": "proposal one",
+                "evidence_bundle_id": "EV-0001",
+                "review_status": "proposed",
+                "confidence_score": 0.72,
+                "confidence_band": "medium",
+                "confidence_reason_codes": ["citations_grounded"],
+                "review_action": "normal-review",
+            },
+            {
+                "proposal_id": "PRP-0002",
+                "target_proposed_path": f"staging/reviews/{review_id}/proposed/wiki/source-notes/test.md",
+                "intended_wiki_path": "wiki/source-notes/test.md",
+                "change_type": "new_note_link",
+                "summary": "proposal two",
+                "evidence_bundle_id": "EV-0002",
+                "review_status": "proposed",
+                "confidence_score": 0.15,
+                "confidence_band": "low",
+                "confidence_reason_codes": ["low_citation_coverage"],
+                "review_action": "deep-review",
+            },
+        ],
+        proposal_decisions=[
+            {
+                "recorded_at": "2026-04-12T00:00:00Z",
+                "proposal_id": "PRP-0001",
+                "decision": "approved",
+            }
+        ],
+    )
+    try:
+        missing = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "outcomes" / "main.py"),
+                "list-missing-decisions",
+                "--review-id",
+                review_id,
+            ],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert missing.returncode == 0, missing.stderr + missing.stdout
+        assert f"{review_id}: missing=1" in missing.stdout
+        assert "PRP-0002" in missing.stdout
+
+        scaffold = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "outcomes" / "main.py"),
+                "scaffold-sidecar",
+                "--review-id",
+                review_id,
+            ],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert scaffold.returncode == 0, scaffold.stderr + scaffold.stdout
+        template_path = review_dir / "proposal-decisions.template.jsonl"
+        assert template_path.exists()
+        template_rows = [json.loads(line) for line in template_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        assert len(template_rows) == 1
+        assert template_rows[0]["proposal_id"] == "PRP-0002"
+        assert template_rows[0]["decision"] == "__REQUIRED__"
+    finally:
+        if review_dir.exists():
+            shutil.rmtree(review_dir)
+
+
 def test_status_command_reports_readiness_gaps() -> None:
     dataset_path = ROOT / "staging" / "reviewer-outcomes" / "test-status.jsonl"
     dataset_path.parent.mkdir(parents=True, exist_ok=True)
@@ -336,3 +556,310 @@ def test_status_command_reports_readiness_gaps() -> None:
     finally:
         if dataset_path.exists():
             dataset_path.unlink()
+
+
+def test_status_reports_fallback_only_reviews() -> None:
+    review_id = "REV-2099-9815"
+    review_dir = _build_review_fixture(review_id, decision_status="approved")
+    dataset_path = ROOT / "staging" / "reviewer-outcomes" / "test-status-fallback.jsonl"
+    dataset_path.parent.mkdir(parents=True, exist_ok=True)
+    dataset_path.write_text("", encoding="utf-8")
+    try:
+        run = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "outcomes" / "main.py"),
+                "status",
+                "--dataset-path",
+                str(dataset_path.relative_to(ROOT)),
+            ],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert run.returncode == 0, run.stderr + run.stdout
+        assert "fallback_only_reviews:" in run.stdout
+        assert f"- {review_id}: proposals=1 fallback_review_status=approve" in run.stdout
+    finally:
+        if review_dir.exists():
+            shutil.rmtree(review_dir)
+        if dataset_path.exists():
+            dataset_path.unlink()
+
+
+def test_batch_capture_prefers_proposal_decision_sidecar_over_review_status() -> None:
+    review_id = "REV-2099-9809"
+    review_dir = _build_review_fixture(
+        review_id,
+        decision_status="approved",
+        proposal_decisions=[
+            {
+                "recorded_at": "2026-04-12T00:00:00Z",
+                "proposal_id": "PRP-0001",
+                "decision": "rejected",
+                "notes": "Reject this proposal",
+                "reviewer": "human",
+            }
+        ],
+    )
+    dataset_path = ROOT / "staging" / "reviewer-outcomes" / "test-sidecar-override.jsonl"
+    if dataset_path.exists():
+        dataset_path.unlink()
+    try:
+        run = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "outcomes" / "main.py"),
+                "batch-capture",
+                "--review-id",
+                review_id,
+                "--dataset-path",
+                str(dataset_path.relative_to(ROOT)),
+            ],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert run.returncode == 0, run.stderr + run.stdout
+        assert "proposal_overrides=1" in run.stdout
+        row = json.loads(dataset_path.read_text(encoding="utf-8").splitlines()[0])
+        assert row["actual_reviewer_decision"] == "rejected"
+        assert row["actual_reviewer_decision_normalized"] == "reject"
+        assert "proposal sidecar decision" in row["notes"]
+    finally:
+        if review_dir.exists():
+            shutil.rmtree(review_dir)
+        if dataset_path.exists():
+            dataset_path.unlink()
+
+
+def test_batch_capture_mixes_proposal_decisions_and_review_fallback() -> None:
+    review_id = "REV-2099-9810"
+    review_dir = _build_review_fixture(
+        review_id,
+        decision_status="approved",
+        proposals=[
+            {
+                "proposal_id": "PRP-0001",
+                "target_proposed_path": f"staging/reviews/{review_id}/proposed/wiki/platforms/meta-ads.md",
+                "intended_wiki_path": "wiki/platforms/meta-ads.md",
+                "change_type": "update_section",
+                "summary": "proposal one",
+                "evidence_bundle_id": "EV-0001",
+                "review_status": "proposed",
+                "confidence_score": 0.72,
+                "confidence_band": "medium",
+                "confidence_reason_codes": ["citations_grounded"],
+                "review_action": "normal-review",
+            },
+            {
+                "proposal_id": "PRP-0002",
+                "target_proposed_path": f"staging/reviews/{review_id}/proposed/wiki/source-notes/test.md",
+                "intended_wiki_path": "wiki/source-notes/test.md",
+                "change_type": "new_note_link",
+                "summary": "proposal two",
+                "evidence_bundle_id": "EV-0002",
+                "review_status": "proposed",
+                "confidence_score": 0.15,
+                "confidence_band": "low",
+                "confidence_reason_codes": ["low_citation_coverage"],
+                "review_action": "deep-review",
+            },
+        ],
+        proposal_decisions=[
+            {
+                "recorded_at": "2026-04-12T00:00:00Z",
+                "proposal_id": "PRP-0001",
+                "decision": "approved_with_edits",
+            }
+        ],
+    )
+    dataset_path = ROOT / "staging" / "reviewer-outcomes" / "test-mixed-capture.jsonl"
+    if dataset_path.exists():
+        dataset_path.unlink()
+    try:
+        run = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "outcomes" / "main.py"),
+                "batch-capture",
+                "--review-id",
+                review_id,
+                "--dataset-path",
+                str(dataset_path.relative_to(ROOT)),
+            ],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert run.returncode == 0, run.stderr + run.stdout
+        assert "captured_rows: 2" in run.stdout
+        assert "proposal_overrides=1" in run.stdout
+        rows = [json.loads(line) for line in dataset_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        normalized = {row["proposal_id"]: row["actual_reviewer_decision_normalized"] for row in rows}
+        assert normalized == {"PRP-0001": "approve_with_edits", "PRP-0002": "approve"}
+    finally:
+        if review_dir.exists():
+            shutil.rmtree(review_dir)
+        if dataset_path.exists():
+            dataset_path.unlink()
+
+
+def test_batch_capture_uses_proposal_decisions_even_when_review_is_pending() -> None:
+    review_id = "REV-2099-9812"
+    review_dir = _build_review_fixture(
+        review_id,
+        decision_status="pending",
+        proposals=[
+            {
+                "proposal_id": "PRP-0001",
+                "target_proposed_path": f"staging/reviews/{review_id}/proposed/wiki/platforms/meta-ads.md",
+                "intended_wiki_path": "wiki/platforms/meta-ads.md",
+                "change_type": "update_section",
+                "summary": "proposal one",
+                "evidence_bundle_id": "EV-0001",
+                "review_status": "proposed",
+                "confidence_score": 0.72,
+                "confidence_band": "medium",
+                "confidence_reason_codes": ["citations_grounded"],
+                "review_action": "normal-review",
+            },
+            {
+                "proposal_id": "PRP-0002",
+                "target_proposed_path": f"staging/reviews/{review_id}/proposed/wiki/source-notes/test.md",
+                "intended_wiki_path": "wiki/source-notes/test.md",
+                "change_type": "new_note_link",
+                "summary": "proposal two",
+                "evidence_bundle_id": "EV-0002",
+                "review_status": "proposed",
+                "confidence_score": 0.15,
+                "confidence_band": "low",
+                "confidence_reason_codes": ["low_citation_coverage"],
+                "review_action": "deep-review",
+            },
+        ],
+        proposal_decisions=[
+            {
+                "recorded_at": "2026-04-12T00:00:00Z",
+                "proposal_id": "PRP-0001",
+                "decision": "approved_with_edits",
+            }
+        ],
+    )
+    dataset_path = ROOT / "staging" / "reviewer-outcomes" / "test-pending-sidecar.jsonl"
+    if dataset_path.exists():
+        dataset_path.unlink()
+    try:
+        run = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "outcomes" / "main.py"),
+                "batch-capture",
+                "--review-id",
+                review_id,
+                "--dataset-path",
+                str(dataset_path.relative_to(ROOT)),
+            ],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert run.returncode == 0, run.stderr + run.stdout
+        assert "captured_rows: 1" in run.stdout
+        assert "skipped_pending: 1" in run.stdout
+        rows = [json.loads(line) for line in dataset_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        assert len(rows) == 1
+        assert rows[0]["proposal_id"] == "PRP-0001"
+        assert rows[0]["actual_reviewer_decision_normalized"] == "approve_with_edits"
+    finally:
+        if review_dir.exists():
+            shutil.rmtree(review_dir)
+        if dataset_path.exists():
+            dataset_path.unlink()
+
+
+def test_review_validator_rejects_invalid_proposal_decision_sidecar() -> None:
+    review_id = "REV-2099-9811"
+    review_dir = _build_review_fixture(
+        review_id,
+        decision_status="approved",
+        proposal_decisions=[
+            {
+                "recorded_at": "2026-04-12T00:00:00Z",
+                "proposal_id": "PRP-9999",
+                "decision": "approve",
+            }
+        ],
+    )
+    try:
+        _write_review_manifest(
+            review_dir,
+            [f"staging/reviews/{review_id}/proposed/wiki/platforms/meta-ads.md"],
+        )
+        _write_required_review_files(review_dir)
+        errors = validate_review_package(review_dir)
+        assert any("unknown proposal_id PRP-9999" in error for error in errors)
+        assert any("decision must be one of" in error for error in errors)
+    finally:
+        if review_dir.exists():
+            shutil.rmtree(review_dir)
+
+
+def test_duplicate_proposal_id_in_sidecar_fails_validation_and_batch_capture() -> None:
+    review_id = "REV-2099-9813"
+    review_dir = _build_review_fixture(
+        review_id,
+        decision_status="approved",
+        proposal_decisions=[
+            {
+                "recorded_at": "2026-04-12T00:00:00Z",
+                "proposal_id": "PRP-0001",
+                "decision": "approved",
+            },
+            {
+                "recorded_at": "2026-04-12T00:01:00Z",
+                "proposal_id": "PRP-0001",
+                "decision": "rejected",
+            },
+        ],
+    )
+    try:
+        _write_review_manifest(
+            review_dir,
+            [f"staging/reviews/{review_id}/proposed/wiki/platforms/meta-ads.md"],
+        )
+        _write_required_review_files(review_dir)
+        errors = validate_review_package(review_dir)
+        assert any("exactly one active row per proposal_id is allowed" in error for error in errors)
+
+        dataset_path = ROOT / "staging" / "reviewer-outcomes" / "test-duplicate-sidecar.jsonl"
+        if dataset_path.exists():
+            dataset_path.unlink()
+        try:
+            run = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "outcomes" / "main.py"),
+                    "batch-capture",
+                    "--review-id",
+                    review_id,
+                    "--dataset-path",
+                    str(dataset_path.relative_to(ROOT)),
+                ],
+                cwd=ROOT,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            assert run.returncode != 0
+            assert "exactly one active row per proposal_id is allowed" in (run.stderr + run.stdout)
+        finally:
+            if dataset_path.exists():
+                dataset_path.unlink()
+    finally:
+        if review_dir.exists():
+            shutil.rmtree(review_dir)
