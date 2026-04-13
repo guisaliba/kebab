@@ -1,0 +1,11 @@
+review_id: REV-2026-0003
+generated_at: '2026-04-12T23:47:52Z'
+retrieval_policy_version: phase4-v1
+proposal_count: 2
+proposal_paths:
+- staging/reviews/REV-2026-0003/proposed/wiki/source-notes/meta-ads-course-module-1.md
+- staging/reviews/REV-2026-0003/proposed/wiki/platforms/meta-ads.md
+evidence_bundle_paths:
+- staging/reviews/REV-2026-0003/retrieval-assist/evidence/EV-0001.yaml
+- staging/reviews/REV-2026-0003/retrieval-assist/evidence/EV-0002.yaml
+notes: retrieval-assist initial run

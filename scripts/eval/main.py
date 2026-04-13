@@ -275,7 +275,7 @@ def _build_calibration_report(reviewer_outcomes: dict[str, Any]) -> dict[str, An
     elif len(present_provenances) == 1:
         dataset_provenance = present_provenances[0]
     else:
-        dataset_provenance = "unknown"
+        dataset_provenance = normalize_dataset_provenance(reviewer_outcomes.get("metadata", {}).get("dataset_origin")) or "real"
 
     real_entries = [entry for entry in entries if entry.get("provenance") == "real"]
     real_outcome_counts = {
@@ -297,6 +297,36 @@ def _build_calibration_report(reviewer_outcomes: dict[str, Any]) -> dict[str, An
         "real_outcomes_count": len(real_entries),
         "distinct_review_count": real_distinct_reviews,
     }
+    readiness_gaps: dict[str, dict[str, int]] = {}
+    if not readiness["checks"]["real_outcomes_min_met"]:
+        threshold = CALIBRATION_READINESS_THRESHOLDS["real_outcomes_min"]
+        readiness_gaps["real_outcomes_min_met"] = {
+            "current": len(real_entries),
+            "threshold": threshold,
+            "remaining": max(threshold - len(real_entries), 0),
+        }
+    if not readiness["checks"]["distinct_reviews_min_met"]:
+        threshold = CALIBRATION_READINESS_THRESHOLDS["distinct_reviews_min"]
+        readiness_gaps["distinct_reviews_min_met"] = {
+            "current": real_distinct_reviews,
+            "threshold": threshold,
+            "remaining": max(threshold - real_distinct_reviews, 0),
+        }
+    for outcome_key, check_key in (
+        ("approve", "approve_class_balance_met"),
+        ("approve_with_edits", "approve_with_edits_class_balance_met"),
+        ("reject", "reject_class_balance_met"),
+    ):
+        if readiness["checks"][check_key]:
+            continue
+        threshold = CALIBRATION_READINESS_THRESHOLDS["per_outcome_class_min"]
+        current = real_outcome_counts[outcome_key]
+        readiness_gaps[check_key] = {
+            "current": current,
+            "threshold": threshold,
+            "remaining": max(threshold - current, 0),
+        }
+    readiness["readiness_gaps"] = readiness_gaps
     readiness["tuning_ready"] = all(readiness["checks"].values())
 
     tuning: dict[str, Any] = {

@@ -1,0 +1,13 @@
+review_id: REV-2026-0001
+generated_at: '2026-04-12T23:47:52Z'
+retrieval_policy_version: phase4-v1
+proposal_count: 3
+proposal_paths:
+- staging/reviews/REV-2026-0001/proposed/wiki/platforms/meta-ads.md
+- staging/reviews/REV-2026-0001/proposed/wiki/tactics/broad-targeting.md
+- staging/reviews/REV-2026-0001/proposed/wiki/source-notes/src-2026-0001-meta-ads-course-module-1.md
+evidence_bundle_paths:
+- staging/reviews/REV-2026-0001/retrieval-assist/evidence/EV-0001.yaml
+- staging/reviews/REV-2026-0001/retrieval-assist/evidence/EV-0002.yaml
+- staging/reviews/REV-2026-0001/retrieval-assist/evidence/EV-0003.yaml
+notes: retrieval-assist initial run

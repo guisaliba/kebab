@@ -1,11 +1,11 @@
 {
   "index_version": 2,
   "corpus_type": "wiki",
-  "indexed_at": "2026-04-12T22:11:20Z",
+  "indexed_at": "2026-04-12T23:31:06Z",
   "documents": [
     {
       "path": "wiki/glossary.md",
-      "mtime": 1776031708.787692,
+      "mtime": 1775874094.681646,
       "content_hash": "fd6009d21d3b56e493fb272e32c04fb3a0d0188b14b8ecb678f68fdc0218f5d2",
       "filename": "glossary.md",
       "title": "Glossary",
@@ -39,7 +39,7 @@
     },
     {
       "path": "wiki/index.md",
-      "mtime": 1776031708.7885852,
+      "mtime": 1775773892.0,
       "content_hash": "3192ee4cf5f2fd8756c7e861425e3cf820f200566821a0328f45ce9f67a98a24",
       "filename": "index.md",
       "title": "index",
@@ -66,7 +66,7 @@
     },
     {
       "path": "wiki/overview.md",
-      "mtime": 1776031708.7885852,
+      "mtime": 1775873973.0,
       "content_hash": "f7dcdc579a85b4ecc30222272762093623df2a6781439a1b907a4a02ef931ffe",
       "filename": "overview.md",
       "title": "Overview",
@@ -101,7 +101,7 @@
     },
     {
       "path": "wiki/platforms/meta-ads.md",
-      "mtime": 1776031878.774732,
+      "mtime": 1776036664.0497177,
       "content_hash": "b3d281923fd6dea888394fe6913a4987c6073ca6c5908b9e4f8281fe9461cef8",
       "filename": "meta-ads.md",
       "title": "Meta Ads",
@@ -138,7 +138,7 @@
     },
     {
       "path": "wiki/source-notes/src-2026-0001-meta-ads-course-module-1.md",
-      "mtime": 1776031708.7885852,
+      "mtime": 1775874097.0898223,
       "content_hash": "eff25a098663926a93dda1eec2c08797b7ea686d25d0b130c80e91d12efed33e",
       "filename": "src-2026-0001-meta-ads-course-module-1.md",
       "title": "Source Note - SRC-2026-0001",
@@ -173,7 +173,7 @@
     },
     {
       "path": "wiki/tactics/broad-targeting.md",
-      "mtime": 1776031708.7885852,
+      "mtime": 1775873985.3316183,
       "content_hash": "dca69ea2b8f39b08653270e51e5872a0414886341c3446f46dd06ace4e6ca046",
       "filename": "broad-targeting.md",
       "title": "Broad Targeting",

@@ -1,0 +1,97 @@
+evidence_bundle_id: EV-0002
+proposal_id: PRP-0002
+question_or_intent: Meta Ads
+retrieval_context:
+  consulted_layers: wiki
+  fuzzy_enabled: false
+  aliases_enabled: true
+  alias_influence_class: none
+grounding:
+  normalized_citations:
+  - source_id: SRC-2026-0001
+    evidence_ref: §lesson-01 00:00:00-00:02:10
+  - source_id: SRC-2026-0001
+    evidence_ref: §lesson-01 00:02:11-00:05:30
+  source_ids:
+  - SRC-2026-0001
+  citation_format_version: v1
+winner:
+  path: wiki/platforms/meta-ads.md
+  snippet: '---'
+  source_markers:
+  - '[Sources: SRC-2026-0001 §lesson-01 00:00:00-00:02:10]'
+  - '[Sources: SRC-2026-0001 §lesson-01 00:02:11-00:05:30]'
+  citations:
+  - source_id: SRC-2026-0001
+    evidence_ref: §lesson-01 00:00:00-00:02:10
+  - source_id: SRC-2026-0001
+    evidence_ref: §lesson-01 00:02:11-00:05:30
+  score: 17.819179
+  explain_payload:
+    path: wiki/platforms/meta-ads.md
+    accepted: true
+    final_score: 17.819179
+    bm25_total: 12.269179
+    bm25_fields:
+      title: 7.152016
+      headings: 4.242557
+      filename: 0.0
+      frontmatter: 0.0
+      body: 0.874606
+    heuristic_fields:
+      phrase_boost: 3.5
+      page_type_boost: 1.0
+      confidence_boost: 0.0
+      citation_boost: 0.2
+      role_adjustment: 0.4
+      canonical_precedence_boost: 0.45
+      evidence_alignment_boost: 0.0
+      fuzzy_match_boost: 0.0
+      tactic_platform_intent_boost: 0.0
+      index_page_penalty: 0.0
+    acceptance_reasons:
+    - score_meets_threshold
+    - lexical_overlap_present
+    - retrieval_role_answerable
+    rejection_reasons: []
+    metadata:
+      accepted: true
+      corpus_type: wiki
+      page_type: platform
+      confidence: medium
+      citations_present: true
+      retrieval_role: answerable
+supporting_hits: []
+selection_policy:
+  max_supporting_hits: 2
+  distinctness_rules:
+  - different_path
+  - different_page_type
+  - different_source_or_citation_context
+quality_flags:
+- single_supporting_context
+confidence_assessment:
+  score: 0.7
+  band: medium
+  reason_codes:
+  - claims_linked_strong
+  - citations_grounded
+  - single_supporting_context
+  factor_breakdown:
+    linked_claim_factor: 1.0
+    citation_factor: 1.0
+    supporting_diversity_factor: 0.0
+    base_score: 0.8
+    penalty: 0.1
+  review_action: normal-review
+rationale_claim_ids:
+- CLM-0001
+- CLM-0005
+- CLM-0002
+why_suggested: 'Linked claims CLM-0001: Hoje vamos falar sobre estrutura de campanha
+  em Meta Ads e por que o ROAS sozinho nem sempre é suficiente para diagnosticar um
+  problema. | CLM-0005: Não é uma regra universal.; target /wiki/platforms/meta-ads.md;
+  top retrieval hit wiki/platforms/meta-ads.md (score=17.819179); citation spans SRC-2026-0001
+  §lesson-01 00:00:00-00:02:10; SRC-2026-0001 §lesson-01 00:02:11-00:05:30.'
+risk_or_uncertainty: Suggestion remains staging-only and needs reviewer approval.
+generated_at: '2026-04-12T23:47:52Z'

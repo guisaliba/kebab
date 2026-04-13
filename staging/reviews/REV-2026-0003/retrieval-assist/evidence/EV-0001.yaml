@@ -1,0 +1,177 @@
+evidence_bundle_id: EV-0001
+proposal_id: PRP-0001
+question_or_intent: Source Note - SRC-2026-0001 Source Note — SRC-2026-0001
+retrieval_context:
+  consulted_layers: wiki
+  fuzzy_enabled: false
+  aliases_enabled: true
+  alias_influence_class: none
+grounding:
+  normalized_citations:
+  - source_id: SRC-2026-0001
+    evidence_ref: §lesson-01 00:00:00-00:02:10
+  - source_id: SRC-2026-0001
+    evidence_ref: §lesson-01 00:02:11-00:05:30
+  - source_id: SRC-2026-0001
+    evidence_ref: §lesson-01 00:05:31-00:08:40
+  source_ids:
+  - SRC-2026-0001
+  citation_format_version: v1
+winner:
+  path: wiki/source-notes/src-2026-0001-meta-ads-course-module-1.md
+  snippet: '---'
+  source_markers: []
+  citations: []
+  score: 30.20162
+  explain_payload:
+    path: wiki/source-notes/src-2026-0001-meta-ads-course-module-1.md
+    accepted: true
+    final_score: 30.20162
+    bm25_total: 31.95162
+    bm25_fields:
+      title: 17.196392
+      headings: 11.456549
+      filename: 0.0
+      frontmatter: 0.0
+      body: 3.298679
+    heuristic_fields:
+      phrase_boost: 0.0
+      page_type_boost: -0.4
+      confidence_boost: 0.0
+      citation_boost: 0.0
+      role_adjustment: -0.25
+      canonical_precedence_boost: -1.1
+      evidence_alignment_boost: 0.0
+      fuzzy_match_boost: 0.0
+      tactic_platform_intent_boost: 0.0
+      index_page_penalty: 0.0
+    acceptance_reasons:
+    - score_meets_threshold
+    - lexical_overlap_present
+    - retrieval_role_auxiliary
+    rejection_reasons: []
+    metadata:
+      accepted: true
+      corpus_type: wiki
+      page_type: source-note
+      confidence: medium
+      citations_present: false
+      retrieval_role: auxiliary
+supporting_hits:
+- path: wiki/platforms/meta-ads.md
+  snippet: '---'
+  source_markers:
+  - '[Sources: SRC-2026-0001 §lesson-01 00:00:00-00:02:10]'
+  - '[Sources: SRC-2026-0001 §lesson-01 00:02:11-00:05:30]'
+  citations:
+  - source_id: SRC-2026-0001
+    evidence_ref: §lesson-01 00:00:00-00:02:10
+  - source_id: SRC-2026-0001
+    evidence_ref: §lesson-01 00:02:11-00:05:30
+  score: 2.760801
+  explain_payload:
+    path: wiki/platforms/meta-ads.md
+    accepted: true
+    final_score: 2.760801
+    bm25_total: 0.710801
+    bm25_fields:
+      title: 0.0
+      headings: 0.0
+      filename: 0.0
+      frontmatter: 0.0
+      body: 0.710801
+    heuristic_fields:
+      phrase_boost: 0.0
+      page_type_boost: 1.0
+      confidence_boost: 0.0
+      citation_boost: 0.2
+      role_adjustment: 0.4
+      canonical_precedence_boost: 0.45
+      evidence_alignment_boost: 0.0
+      fuzzy_match_boost: 0.0
+      tactic_platform_intent_boost: 0.0
+      index_page_penalty: 0.0
+    acceptance_reasons:
+    - score_meets_threshold
+    - lexical_overlap_present
+    - retrieval_role_answerable
+    rejection_reasons: []
+    metadata:
+      accepted: true
+      corpus_type: wiki
+      page_type: platform
+      confidence: medium
+      citations_present: true
+      retrieval_role: answerable
+- path: wiki/tactics/broad-targeting.md
+  snippet: '---'
+  source_markers:
+  - '[Sources: SRC-2026-0001 §lesson-01 00:05:31-00:08:40]'
+  citations:
+  - source_id: SRC-2026-0001
+    evidence_ref: §lesson-01 00:05:31-00:08:40
+  score: 2.321557
+  explain_payload:
+    path: wiki/tactics/broad-targeting.md
+    accepted: true
+    final_score: 2.321557
+    bm25_total: 0.571557
+    bm25_fields:
+      title: 0.0
+      headings: 0.0
+      filename: 0.0
+      frontmatter: 0.0
+      body: 0.571557
+    heuristic_fields:
+      phrase_boost: 0.0
+      page_type_boost: 0.7
+      confidence_boost: 0.0
+      citation_boost: 0.2
+      role_adjustment: 0.4
+      canonical_precedence_boost: 0.45
+      evidence_alignment_boost: 0.0
+      fuzzy_match_boost: 0.0
+      tactic_platform_intent_boost: 0.0
+      index_page_penalty: 0.0
+    acceptance_reasons:
+    - score_meets_threshold
+    - lexical_overlap_present
+    - retrieval_role_answerable
+    rejection_reasons: []
+    metadata:
+      accepted: true
+      corpus_type: wiki
+      page_type: tactic
+      confidence: medium
+      citations_present: true
+      retrieval_role: answerable
+selection_policy:
+  max_supporting_hits: 2
+  distinctness_rules:
+  - different_path
+  - different_page_type
+  - different_source_or_citation_context
+quality_flags:
+- weak_linked_claim_coverage
+confidence_assessment:
+  score: 0.3
+  band: low
+  reason_codes:
+  - citations_grounded
+  - supporting_context_diverse
+  - weak_linked_claim_coverage
+  factor_breakdown:
+    linked_claim_factor: 0.0
+    citation_factor: 1.0
+    supporting_diversity_factor: 1.0
+    base_score: 0.55
+    penalty: 0.25
+  review_action: deep-review
+rationale_claim_ids: []
+why_suggested: No linked claims found in claim-ledger.jsonl; target /wiki/source-notes/meta-ads-course-module-1.md;
+  top retrieval hit wiki/source-notes/src-2026-0001-meta-ads-course-module-1.md (score=30.20162);
+  citation spans SRC-2026-0001 §lesson-01 00:00:00-00:02:10; SRC-2026-0001 §lesson-01
+  00:02:11-00:05:30.
+risk_or_uncertainty: Suggestion remains staging-only and needs reviewer approval.
+  Claim-to-target linkage was not found in claim-ledger for /wiki/source-notes/meta-ads-course-module-1.md.
+generated_at: '2026-04-12T23:47:52Z'
